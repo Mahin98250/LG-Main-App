@@ -2,19 +2,14 @@ import { supabase } from "@/lg/supabase";
 
 /**
  * Auth for Learner's Guide.
- *
- * Passwords are handled only by Supabase Auth. Application data is resolved
- * from Supabase and is never required to be present in localStorage during
- * authentication.
+ * Passwords are handled only by Supabase Auth.
+ * Application references are resolved from Supabase, not localStorage.
  */
 const ACCOUNT_DOMAIN = "learnersguide.in";
 const PREFIX = { teacher: "t", student: "s", parent: "p" };
 
 export const normalizeId = (loginId) =>
-  String(loginId || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+  String(loginId || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
 export const authEmail = (loginId, role) => {
   if (String(loginId || "").includes("@")) return String(loginId).trim().toLowerCase();
@@ -26,33 +21,26 @@ export const resolveRef = async (role, loginId) => {
   const raw = String(loginId || "").trim();
   if (!raw) return null;
 
-  const normalized = normalizeId(raw);
-
   if (role === "teacher") {
     const { data, error } = await supabase
       .from("teachers")
       .select("id")
-      .or(`phone.eq.${raw},phone.eq.${normalized}`)
+      .eq("phone", raw)
       .limit(1)
       .maybeSingle();
-    if (error) {
-      console.warn("Could not resolve teacher reference:", error.message);
-      return null;
-    }
+    if (error) console.warn("Could not resolve teacher reference:", error.message);
     return data?.id || null;
   }
 
   if (role === "student") {
+    // Student login uses the SID shown in the current login UI.
     const { data, error } = await supabase
       .from("students")
       .select("id")
-      .or(`phone.eq.${raw},sid.eq.${raw},roll.eq.${raw}`)
+      .eq("sid", raw)
       .limit(1)
       .maybeSingle();
-    if (error) {
-      console.warn("Could not resolve student reference:", error.message);
-      return null;
-    }
+    if (error) console.warn("Could not resolve student reference:", error.message);
     return data?.id || null;
   }
 
@@ -60,13 +48,10 @@ export const resolveRef = async (role, loginId) => {
     const { data, error } = await supabase
       .from("students")
       .select("id")
-      .or(`pphone.eq.${raw},parentPhone.eq.${raw},phone.eq.${raw}`)
+      .eq("parentphone", raw)
       .limit(1)
       .maybeSingle();
-    if (error) {
-      console.warn("Could not resolve parent reference:", error.message);
-      return null;
-    }
+    if (error) console.warn("Could not resolve parent reference:", error.message);
     return data?.id || null;
   }
 
@@ -74,15 +59,15 @@ export const resolveRef = async (role, loginId) => {
 };
 
 const toUser = async (authUser, role) => {
-  const m = authUser?.user_metadata || {};
-  const r = role || m.role;
-  const ref = m.ref || (await resolveRef(r, m.loginId || m.phone));
+  const metadata = authUser?.user_metadata || {};
+  const resolvedRole = role || metadata.role;
+  const ref = metadata.ref || (await resolveRef(resolvedRole, metadata.loginId || metadata.phone));
 
   return {
     id: authUser.id,
-    name: m.name || m.phone || "User",
-    phone: m.phone || "",
-    role: r,
+    name: metadata.name || metadata.phone || "User",
+    phone: metadata.phone || "",
+    role: resolvedRole,
     ref: ref || null,
   };
 };
@@ -92,7 +77,6 @@ export async function signIn(loginId, password, role) {
     email: authEmail(loginId, role),
     password,
   });
-
   if (error) return { user: null, error: error.message };
 
   const metaRole = data.user?.user_metadata?.role;
@@ -101,7 +85,12 @@ export async function signIn(loginId, password, role) {
     return { user: null, error: `That account is registered as a ${metaRole}.` };
   }
 
-  return { user: await toUser(data.user, role), error: null };
+  const user = await toUser(data.user, role);
+  if (role !== "admin" && !user.ref) {
+    await supabase.auth.signOut();
+    return { user: null, error: "Your account is not linked to an institute profile yet. Please contact the administrator." };
+  }
+  return { user, error: null };
 }
 
 export async function signUp({ name, phone, password, role }) {
@@ -122,11 +111,14 @@ export async function signUp({ name, phone, password, role }) {
     return { user: null, needsConfirm: false, error: msg };
   }
 
-  if (!data.user || !data.session) {
-    return { user: null, needsConfirm: true, error: null };
-  }
+  if (!data.user || !data.session) return { user: null, needsConfirm: true, error: null };
 
-  return { user: await toUser(data.user, role), needsConfirm: false, error: null };
+  const user = await toUser(data.user, role);
+  if (role !== "admin" && !user.ref) {
+    await supabase.auth.signOut();
+    return { user: null, needsConfirm: false, error: "Account created, but no institute profile is linked yet. Please ask the administrator to link your account." };
+  }
+  return { user, needsConfirm: false, error: null };
 }
 
 export async function getCurrentUser() {
