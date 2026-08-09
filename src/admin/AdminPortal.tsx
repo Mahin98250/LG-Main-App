@@ -26,14 +26,7 @@ export default function AdminPortal({ initialPage = "dashboard" }: AdminPortalPr
     return <AdminLogin onAuthenticated={() => setAuthenticated(true)} />;
   }
 
-  let pageContent: React.ReactNode = <AdminDashboard />;
-
-  switch (activePage) {
-    case "dashboard":
-    default:
-      pageContent = <AdminDashboard />;
-      break;
-  }
+  const pageContent = <AdminDashboard />;
 
   return (
     <AdminLayout
