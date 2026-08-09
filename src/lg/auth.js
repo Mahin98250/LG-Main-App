@@ -3,7 +3,8 @@ import { supabase } from "@/lg/supabase";
 /**
  * Auth for Learner's Guide.
  * Passwords are handled only by Supabase Auth.
- * Application references are resolved from Supabase, not localStorage.
+ * Authorization role/ref are read from server-managed app_metadata so a user
+ * cannot promote themselves by editing user_metadata in the browser.
  */
 const ACCOUNT_DOMAIN = "learnersguide.in";
 const PREFIX = { teacher: "t", student: "s", parent: "p" };
@@ -16,41 +17,24 @@ export const authEmail = (loginId, role) => {
   return `${PREFIX[role] || "u"}.${normalizeId(loginId)}@${ACCOUNT_DOMAIN}`;
 };
 
-/** Resolve the application row belonging to the authenticated account. */
 export const resolveRef = async (role, loginId) => {
   const raw = String(loginId || "").trim();
   if (!raw) return null;
 
   if (role === "teacher") {
-    const { data, error } = await supabase
-      .from("teachers")
-      .select("id")
-      .eq("phone", raw)
-      .limit(1)
-      .maybeSingle();
+    const { data, error } = await supabase.from("teachers").select("id").eq("phone", raw).limit(1).maybeSingle();
     if (error) console.warn("Could not resolve teacher reference:", error.message);
     return data?.id || null;
   }
 
   if (role === "student") {
-    // Student login uses the SID shown in the current login UI.
-    const { data, error } = await supabase
-      .from("students")
-      .select("id")
-      .eq("sid", raw)
-      .limit(1)
-      .maybeSingle();
+    const { data, error } = await supabase.from("students").select("id").eq("sid", raw).limit(1).maybeSingle();
     if (error) console.warn("Could not resolve student reference:", error.message);
     return data?.id || null;
   }
 
   if (role === "parent") {
-    const { data, error } = await supabase
-      .from("students")
-      .select("id")
-      .eq("parentphone", raw)
-      .limit(1)
-      .maybeSingle();
+    const { data, error } = await supabase.from("students").select("id").eq("parentphone", raw).limit(1).maybeSingle();
     if (error) console.warn("Could not resolve parent reference:", error.message);
     return data?.id || null;
   }
@@ -58,17 +42,18 @@ export const resolveRef = async (role, loginId) => {
   return null;
 };
 
-const toUser = async (authUser, role) => {
-  const metadata = authUser?.user_metadata || {};
-  const resolvedRole = role || metadata.role;
-  const ref = metadata.ref || (await resolveRef(resolvedRole, metadata.loginId || metadata.phone));
+const toUser = async (authUser, requestedRole) => {
+  const userMetadata = authUser?.user_metadata || {};
+  const appMetadata = authUser?.app_metadata || {};
+  const role = appMetadata.role || requestedRole || "";
+  const ref = appMetadata.ref || null;
 
   return {
     id: authUser.id,
-    name: metadata.name || metadata.phone || "User",
-    phone: metadata.phone || "",
-    role: resolvedRole,
-    ref: ref || null,
+    name: userMetadata.name || userMetadata.phone || "User",
+    phone: userMetadata.phone || "",
+    role,
+    ref,
   };
 };
 
@@ -79,10 +64,14 @@ export async function signIn(loginId, password, role) {
   });
   if (error) return { user: null, error: error.message };
 
-  const metaRole = data.user?.user_metadata?.role;
-  if (metaRole && metaRole !== role) {
+  const appRole = data.user?.app_metadata?.role;
+  if (!appRole) {
     await supabase.auth.signOut();
-    return { user: null, error: `That account is registered as a ${metaRole}.` };
+    return { user: null, error: "Your account has not been approved by the institute administrator yet." };
+  }
+  if (appRole !== role) {
+    await supabase.auth.signOut();
+    return { user: null, error: `That account is registered as a ${appRole}.` };
   }
 
   const user = await toUser(data.user, role);
@@ -111,20 +100,23 @@ export async function signUp({ name, phone, password, role }) {
     return { user: null, needsConfirm: false, error: msg };
   }
 
+  // New accounts intentionally remain unapproved until an administrator assigns
+  // server-managed app_metadata.role and app_metadata.ref.
   if (!data.user || !data.session) return { user: null, needsConfirm: true, error: null };
-
-  const user = await toUser(data.user, role);
-  if (role !== "admin" && !user.ref) {
-    await supabase.auth.signOut();
-    return { user: null, needsConfirm: false, error: "Account created, but no institute profile is linked yet. Please ask the administrator to link your account." };
-  }
-  return { user, needsConfirm: false, error: null };
+  await supabase.auth.signOut();
+  return {
+    user: null,
+    needsConfirm: false,
+    error: "Account created. An institute administrator must approve and link your account before you can sign in.",
+  };
 }
 
 export async function getCurrentUser() {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
-  return await toUser(data.user);
+  const user = await toUser(data.user);
+  if (!user.role) return null;
+  return user;
 }
 
 export async function signOut() {
