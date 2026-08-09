@@ -200,7 +200,7 @@ export function useRipple() {
 /* ═══════════════════════════════════════════════════════
    SHARED BUBBLES BG
 ═══════════════════════════════════════════════════════ */
-const Bubbles = () => (
+export const Bubbles = () => (
   <div style={{position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none",zIndex:0}}>
     <div style={{position:"absolute",top:-90,right:-60,width:280,height:280,borderRadius:"50%",background:"rgba(255,255,255,0.05)"}}/>
     <div style={{position:"absolute",bottom:-110,left:-70,width:320,height:320,borderRadius:"50%",background:"rgba(255,255,255,0.04)"}}/>
