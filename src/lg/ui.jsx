@@ -379,13 +379,6 @@ export function AppBar({name,role,userId,onLogout,onNotif,onMsg}){
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
-          {/* AI Chatbot */}
-          <button onClick={onChat} title="AI Assistant" className="btn-icon"
-            style={{width:36,height:36,borderRadius:11,background:"rgba(255,255,255,.12)",
-              border:"none",color:"#fff",fontSize:17,display:"flex",alignItems:"center",
-              justifyContent:"center",cursor:"pointer"}}>
-            🤖
-          </button>
           {/* Messaging */}
           <button onClick={onMsg} title="Messages" className="btn-icon"
             style={{width:36,height:36,borderRadius:11,background:"rgba(255,255,255,.12)",
