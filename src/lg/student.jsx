@@ -267,7 +267,6 @@ export function STAnnouncements(){
 
 export function StudentApp({user,onLogout}){
   const [showNotif,setShowNotif]=useState(false);
-  const [showChat,setShowChat]=useState(false);
   const [showMsg,setShowMsg]=useState(false);
   const [tab,setTab]=useState("home");
   const student=lsG("students").find(s=>s.id===user.ref);
@@ -285,10 +284,9 @@ export function StudentApp({user,onLogout}){
   return(
     <>
       <Shell header={<AppBar name={user.name} role="student" userId={user.id} onLogout={onLogout}
-        onNotif={()=>setShowNotif(true)} onChat={()=>setShowChat(true)} onMsg={()=>setShowMsg(true)}/>}
+        onNotif={()=>setShowNotif(true)} onMsg={()=>setShowMsg(true)}/>}
         tabs={tabs} activeTab={tab} setTab={setTab}>{c()}</Shell>
       {showNotif&&<NotifPanel userId={user.id} onClose={()=>setShowNotif(false)}/>}
-      {showChat&&<AIChatBot user={user} onClose={()=>setShowChat(false)}/>}
       {showMsg&&<MessagingPanel user={user} onClose={()=>setShowMsg(false)}/>}
     </>
   );

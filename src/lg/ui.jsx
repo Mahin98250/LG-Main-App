@@ -358,7 +358,7 @@ export function BottomNav({tabs,active,set}){
   );
 }
 /* ── APP BAR with real logo + notifications, AI, messaging ── */
-export function AppBar({name,role,userId,onLogout,onNotif,onChat,onMsg}){
+export function AppBar({name,role,userId,onLogout,onNotif,onMsg}){
   const [add,el]=useRipple();
   const unread=lsG("notifications").filter(n=>n.uid===userId&&!n.read).length;
   const rc=ROLES.find(r=>r.key===role);
