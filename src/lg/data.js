@@ -50,6 +50,28 @@ export const today = () => DAYS[new Date().getDay()];
 
 export const uid = () => "u" + Date.now() + Math.random().toString(36).slice(2, 6);
 
+/* ═══════════ LOCAL CACHE (MIRROR ONLY — NEVER A SOURCE OF TRUTH) ═══════════ */
+const hasLS = () => typeof window !== "undefined" && !!window.localStorage;
+const lsK = (t) => "lg_" + t;
+
+export const lsG = (t) => {
+  if (!hasLS()) return [];
+  try {
+    return JSON.parse(localStorage.getItem(lsK(t)) || "[]");
+  } catch {
+    return [];
+  }
+};
+
+export const lsS = (t, v) => {
+  if (!hasLS()) return;
+  try {
+    localStorage.setItem(lsK(t), JSON.stringify(v));
+  } catch {
+    /* Cache failure must never affect the remote operation. */
+  }
+};
+
 export const TABLES = [
   "students",
   "teachers",
@@ -70,51 +92,99 @@ export const TABLES = [
 export const gdb = async (t) => {
   const { data, error } = await supabase.from(t).select("*");
   if (error) {
-    console.warn("gdb failed [" + t + "]:", error.message);
+    console.error("Supabase read failed [" + t + "]:", error.message);
     throw error;
   }
-  return Array.isArray(data) ? data : [];
+
+  const rows = Array.isArray(data) ? data : [];
+  // Cache only successful server data. Never use cache as a fallback.
+  lsS(t, rows);
+  return rows;
+};
+
+const upsertLocal = (t, v) => {
+  const c = lsG(t);
+  const i = c.findIndex((x) => x && x.id === v.id);
+  if (i === -1) c.push(v);
+  else c[i] = { ...c[i], ...v };
+  lsS(t, c);
 };
 
 export const addR = async (t, row) => {
-  const payload = { ...row, id: row?.id || uid() };
-  const { data, error } = await supabase.from(t).insert(payload).select().maybeSingle();
+  const { data, error } = await supabase
+    .from(t)
+    .insert(row)
+    .select()
+    .maybeSingle();
+
   if (error) {
-    console.warn("addR failed [" + t + "]:", error.message);
+    console.error("Supabase insert failed [" + t + "]:", error.message);
     throw error;
   }
-  return data && data.id ? data : payload;
+
+  if (!data) {
+    const err = new Error("Supabase insert succeeded but returned no row.");
+    console.error("addR failed [" + t + "]:", err.message);
+    throw err;
+  }
+
+  // Update the cache only after the server confirms the write.
+  upsertLocal(t, data);
+  return data;
 };
 
 export const updR = async (t, id, p) => {
-  const { error } = await supabase.from(t).update(p).eq("id", id);
+  const { data, error } = await supabase
+    .from(t)
+    .update(p)
+    .eq("id", id)
+    .select()
+    .maybeSingle();
+
   if (error) {
-    console.warn("updR failed [" + t + "]:", error.message);
+    console.error("Supabase update failed [" + t + "]:", error.message);
     throw error;
   }
-  return true;
+
+  if (!data) {
+    const err = new Error("No row was updated. The record may not exist or RLS may have blocked access.");
+    console.error("updR failed [" + t + "]:", err.message);
+    throw err;
+  }
+
+  // Update the cache only after the server confirms the write.
+  upsertLocal(t, data);
+  return data;
 };
 
 export const delR = async (t, id) => {
-  const { error } = await supabase.from(t).delete().eq("id", id);
+  const { data, error } = await supabase
+    .from(t)
+    .delete()
+    .eq("id", id)
+    .select()
+    .maybeSingle();
+
   if (error) {
-    console.warn("delR failed [" + t + "]:", error.message);
+    console.error("Supabase delete failed [" + t + "]:", error.message);
     throw error;
   }
-  return true;
+
+  if (!data) {
+    const err = new Error("No row was deleted. The record may not exist or RLS may have blocked access.");
+    console.error("delR failed [" + t + "]:", err.message);
+    throw err;
+  }
+
+  // Remove from cache only after the server confirms the deletion.
+  lsS(
+    t,
+    lsG(t).filter((r) => r.id !== id),
+  );
+  return data;
 };
 
-/** Pull every table the UI reads synchronously from Supabase. */
+/** Pull every table the UI reads into the local cache from Supabase. */
 export const hydrateAll = async () => {
-  const entries = await Promise.allSettled(TABLES.map((t) => gdb(t).then((rows) => [t, rows])));
-  const result = {};
-  for (const entry of entries) {
-    if (entry.status === "fulfilled") {
-      const [t, rows] = entry.value;
-      result[t] = rows;
-    } else {
-      throw entry.reason;
-    }
-  }
-  return result;
+  await Promise.all(TABLES.map((t) => gdb(t)));
 };
