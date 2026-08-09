@@ -75,7 +75,12 @@ export async function signUp({ name, phone, password, role }) {
       data: { name, phone, role, loginId: phone, ref: resolveRef(role, phone) },
     },
   });
-  if (error) return { user: null, needsConfirm: false, error: error.message };
+  if (error) {
+    const msg = /rate limit/i.test(error.message)
+      ? "Too many sign-ups from this school right now. Please try again in a few minutes."
+      : error.message;
+    return { user: null, needsConfirm: false, error: msg };
+  }
   if (!data.user) return { user: null, needsConfirm: true, error: null };
   if (!data.session) return { user: null, needsConfirm: true, error: null };
   return { user: toUser(data.user, role), needsConfirm: false, error: null };
