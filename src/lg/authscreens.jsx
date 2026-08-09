@@ -1,16 +1,3 @@
-  const handle=async()=>{
-    if(!phone||!pass){setErr("Fill all fields.");return;}
-    setLoading(true);setErr("");
-    const {user,error}=await signIn(phone.trim(),pass,role);
-    setLoading(false);
-    if(user){onLogin(user);return;}
-    setErr(error==="Invalid login credentials"
-      ?(role==="student"
-        ?"Invalid credentials. Use your Roll Number (SID) and password."
-        :"Invalid credentials. Use your phone number and password.")
-      :(error||"Could not sign in. Please try again."));
-  };
-
 import React,{useState,useEffect,useRef}from"react";
 import {C,ROLES,DAYS,today,lsG,gdb,addR,updR,delR,uid} from "@/lg/data";
 import {signIn,signUp} from "@/lg/auth";
@@ -109,24 +96,14 @@ export function LoginScreen({role,onBack,onSwitch,onLogin}){
   const handle=async()=>{
     if(!phone||!pass){setErr("Fill all fields.");return;}
     setLoading(true);setErr("");
-    try{
-      const u=await loginUser(phone.trim(),pass,role);
-      setLoading(false);
-      if(u){
-        onLogin({...u,role});
-      } else {
-        // Helpful role-specific error message
-        const hint=role==="student"
-          ?"Enter your Roll Number (SID) and password"
-          :role==="teacher"
-          ?"Enter your phone number and password"
-          :"Enter your phone number and password (default: parent@1234)";
-        setErr("Invalid credentials. Please check your login ID and password.");
-      }
-    }catch(e){
-      setLoading(false);
-      setErr("Connection error. Check internet and try again.");
-    }
+    const {user,error}=await signIn(phone.trim(),pass,role);
+    setLoading(false);
+    if(user){onLogin(user);return;}
+    setErr(error==="Invalid login credentials"
+      ?(role==="student"
+        ?"Invalid credentials. Use your Roll Number (SID) and password."
+        :"Invalid credentials. Use your phone number and password.")
+      :(error||"Could not sign in. Please try again."));
   };
 
   return(
