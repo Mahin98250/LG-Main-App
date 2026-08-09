@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { getCurrentUser, signOut } from "@/lg/auth";
 import { clearCache, hydrateAll } from "@/lg/data";
 import { GLOBAL_CSS, LGLogo } from "@/lg/ui";
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/app")({
 
 type SessionUser = { id: string; name: string; phone: string; role: string; ref: string | null };
 
-function Splash({ label, action }: { label: string; action?: React.ReactNode }) {
+function Splash({ label, action }: { label: string; action?: ReactNode }) {
   return (
     <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "linear-gradient(160deg,#1a1060 0%,#2d1b8e 45%,#0e0a3a 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, fontFamily: "'Poppins',sans-serif", textAlign: "center" }}>
       <style>{GLOBAL_CSS}</style>
