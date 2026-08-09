@@ -150,26 +150,15 @@ export function LoginScreen({role,onBack,onSwitch,onLogin}){
           {err&&<div className="fu" style={{background:"rgba(239,68,68,.18)",color:"#fca5a5",
             padding:"9px 13px",borderRadius:10,fontSize:13,marginBottom:12}}>{err}</div>}
           <div style={{textAlign:"right",marginBottom:16}}>
-            <span className="pressable" style={{fontSize:12,color:"rgba(255,255,255,.45)",
+            <span className="pressable"
+              onClick={()=>setErr("Forgot your password? Please ask your school admin to reset it for you.")}
+              style={{fontSize:12,color:"rgba(255,255,255,.45)",
               textDecoration:"underline",padding:"3px 6px",borderRadius:6}}>
               Forgot Password?
             </span>
           </div>
           <WBtn ch={loading?<><span className="spinning">⟳</span> Signing in…</>:"Login →"}
             onClick={handle} dis={loading}/>
-          {/* Demo hints */}
-          <div style={{marginTop:14,background:"rgba(255,255,255,.07)",borderRadius:11,padding:"10px 13px"}}>
-            <div style={{fontSize:11,color:"rgba(255,255,255,.35)",fontWeight:700,marginBottom:5}}>
-              DEMO (pass: 1234)
-            </div>
-            {lsG("users").filter(u=>u.role===role).map(u=>(
-              <div key={u.id} className="demo-row"
-                onClick={()=>{setPhone(u.phone);setPass("1234");}}
-                style={{fontSize:12,color:"rgba(255,255,255,.55)",padding:"5px 7px",marginTop:2}}>
-                📋 {u.name} · {u.phone}
-              </div>
-            ))}
-          </div>
         </div>
 
         <div style={{textAlign:"center",marginTop:20}}>
