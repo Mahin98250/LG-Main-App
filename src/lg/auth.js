@@ -9,13 +9,14 @@ import { lsG } from "@/lg/data";
  * know, which is mapped to a stable internal address for the auth service.
  * Name, phone and role live in the account's own metadata.
  */
-const DOMAINS = { teacher: "teacher.lg.app", student: "student.lg.app", parent: "parent.lg.app" };
+const ACCOUNT_DOMAIN = "learnersguide.in";
+const PREFIX = { teacher: "t", student: "s", parent: "p" };
 
 export const normalizeId = (loginId) => String(loginId || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
 export const authEmail = (loginId, role) => {
   if (String(loginId || "").includes("@")) return String(loginId).trim().toLowerCase();
-  return `${normalizeId(loginId)}@${DOMAINS[role] || "lg.app"}`;
+  return `${PREFIX[role] || "u"}.${normalizeId(loginId)}@${ACCOUNT_DOMAIN}`;
 };
 
 /** Link an account to its students/teachers row so the app can scope data. */
@@ -75,6 +76,7 @@ export async function signUp({ name, phone, password, role }) {
     },
   });
   if (error) return { user: null, needsConfirm: false, error: error.message };
+  if (!data.user) return { user: null, needsConfirm: true, error: null };
   if (!data.session) return { user: null, needsConfirm: true, error: null };
   return { user: toUser(data.user, role), needsConfirm: false, error: null };
 }
