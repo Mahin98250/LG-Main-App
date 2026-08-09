@@ -1,4 +1,4 @@
-import React,{useState,useEffect,useRef}from"react";
+import React,{useState,useEffect,useRef,useCallback,useMemo,useLayoutEffect}from"react";
 import {C,ROLES,DAYS,today,lsG,gdb,addR,updR,delR,uid} from "@/lg/data";
 import {LGLogo,LGIcon,GLOBAL_CSS,Bubbles,Inp,WBtn,GBtn,SBtn,Card,Badge,Sec,EyeBtn,BackBtn,BottomNav,AppBar,Shell,useRipple} from "@/lg/ui";
 import {PDFViewer,BarChart} from "@/lg/panels";
