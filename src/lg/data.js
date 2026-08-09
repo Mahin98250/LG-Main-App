@@ -50,27 +50,6 @@ export const today = () => DAYS[new Date().getDay()];
 
 export const uid = () => "u" + Date.now() + Math.random().toString(36).slice(2, 6);
 
-/* ═══════════ LOCAL CACHE (offline fallback + instant reads) ═══════════ */
-const hasLS = () => typeof window !== "undefined" && !!window.localStorage;
-const lsK = (t) => "lg_" + t;
-
-export const lsG = (t) => {
-  if (!hasLS()) return [];
-  try {
-    return JSON.parse(localStorage.getItem(lsK(t)) || "[]");
-  } catch {
-    return [];
-  }
-};
-export const lsS = (t, v) => {
-  if (!hasLS()) return;
-  try {
-    localStorage.setItem(lsK(t), JSON.stringify(v));
-  } catch {
-    /* quota */
-  }
-};
-
 export const TABLES = [
   "students",
   "teachers",
@@ -89,70 +68,53 @@ export const TABLES = [
 
 /* ═══════════ REMOTE READS / WRITES ═══════════ */
 export const gdb = async (t) => {
-  try {
-    const { data, error } = await supabase.from(t).select("*");
-    if (error) throw error;
-    if (Array.isArray(data)) {
-      lsS(t, data);
-      return data;
-    }
-    return lsG(t);
-  } catch (e) {
-    console.warn("gdb fallback [" + t + "]:", e.message);
-    return lsG(t);
+  const { data, error } = await supabase.from(t).select("*");
+  if (error) {
+    console.warn("gdb failed [" + t + "]:", error.message);
+    throw error;
   }
-};
-
-const upsertLocal = (t, v) => {
-  const c = lsG(t);
-  const i = c.findIndex((x) => x && x.id === v.id);
-  if (i === -1) c.push(v);
-  else c[i] = { ...c[i], ...v };
-  lsS(t, c);
+  return Array.isArray(data) ? data : [];
 };
 
 export const addR = async (t, row) => {
-  const fallback = { ...row, id: row?.id || uid() };
-  try {
-    const { data, error } = await supabase.from(t).insert(row).select().maybeSingle();
-    if (error) throw error;
-    const final = data && data.id ? data : fallback;
-    upsertLocal(t, final);
-    return final;
-  } catch (e) {
-    upsertLocal(t, fallback);
-    console.warn("addR fallback [" + t + "]:", e.message);
-    return fallback;
+  const payload = { ...row, id: row?.id || uid() };
+  const { data, error } = await supabase.from(t).insert(payload).select().maybeSingle();
+  if (error) {
+    console.warn("addR failed [" + t + "]:", error.message);
+    throw error;
   }
+  return data && data.id ? data : payload;
 };
 
 export const updR = async (t, id, p) => {
-  try {
-    const { error } = await supabase.from(t).update(p).eq("id", id);
-    if (error) throw error;
-  } catch (e) {
-    console.warn("updR [" + t + "]:", e.message);
+  const { error } = await supabase.from(t).update(p).eq("id", id);
+  if (error) {
+    console.warn("updR failed [" + t + "]:", error.message);
+    throw error;
   }
-  lsS(
-    t,
-    lsG(t).map((r) => (r.id === id ? { ...r, ...p } : r)),
-  );
+  return true;
 };
 
 export const delR = async (t, id) => {
-  try {
-    const { error } = await supabase.from(t).delete().eq("id", id);
-    if (error) throw error;
-  } catch (e) {
-    console.warn("delR [" + t + "]:", e.message);
+  const { error } = await supabase.from(t).delete().eq("id", id);
+  if (error) {
+    console.warn("delR failed [" + t + "]:", error.message);
+    throw error;
   }
-  lsS(
-    t,
-    lsG(t).filter((r) => r.id !== id),
-  );
+  return true;
 };
 
-/** Pull every table the UI reads synchronously into the local cache. */
+/** Pull every table the UI reads synchronously from Supabase. */
 export const hydrateAll = async () => {
-  await Promise.all(TABLES.map((t) => gdb(t)));
+  const entries = await Promise.allSettled(TABLES.map((t) => gdb(t).then((rows) => [t, rows])));
+  const result = {};
+  for (const entry of entries) {
+    if (entry.status === "fulfilled") {
+      const [t, rows] = entry.value;
+      result[t] = rows;
+    } else {
+      throw entry.reason;
+    }
+  }
+  return result;
 };
