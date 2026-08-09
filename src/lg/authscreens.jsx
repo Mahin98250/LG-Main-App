@@ -1,5 +1,19 @@
+  const handle=async()=>{
+    if(!phone||!pass){setErr("Fill all fields.");return;}
+    setLoading(true);setErr("");
+    const {user,error}=await signIn(phone.trim(),pass,role);
+    setLoading(false);
+    if(user){onLogin(user);return;}
+    setErr(error==="Invalid login credentials"
+      ?(role==="student"
+        ?"Invalid credentials. Use your Roll Number (SID) and password."
+        :"Invalid credentials. Use your phone number and password.")
+      :(error||"Could not sign in. Please try again."));
+  };
+
 import React,{useState,useEffect,useRef}from"react";
 import {C,ROLES,DAYS,today,lsG,gdb,addR,updR,delR,uid} from "@/lg/data";
+import {signIn,signUp} from "@/lg/auth";
 import {LGLogo,LGIcon,GLOBAL_CSS,Bubbles,Inp,WBtn,GBtn,SBtn,Card,Badge,Sec,EyeBtn,BackBtn,BottomNav,AppBar,Shell,useRipple} from "@/lg/ui";
 
 /* ═══════════════════════════════════════════════════════
@@ -204,23 +218,17 @@ export function SignupScreen({role,onBack,onSwitch,onLogin}){
   const rc=ROLES.find(r=>r.key===role);
   const roleEmojis={teacher:"👨‍🏫",student:"🎓",parent:"👨‍👩‍👧"};
 
-  const handle=async()=>{try{
-    if(!name||!phone||!pass){setErr("Fill all required fields.");return;}
+  const handle=async()=>{
+    if(!name.trim()||!phone.trim()||!pass){setErr("Fill all required fields.");return;}
+    if(pass.length<6){setErr("Password must be at least 6 characters.");return;}
     if(pass!==conf){setErr("Passwords don't match.");return;}
-    setLoading(true);
-    try{
-      // Check if phone already exists
-      const existing=lsG("users").find(u=>u.phone===phone&&u.role===role);
-      if(existing){setLoading(false);setErr("Account already exists. Please login.");return;}
-      const nu={id:"u"+Date.now(),name,phone,email:phone+"@lg.edu",pass,role,ref:null,status:"active"};
-      const saved=await addR("users",nu);
-      setLoading(false);
-      onLogin(saved||nu);
-    }catch(e){
-      setLoading(false);
-      setErr("Error creating account. Try again.");
-    }
-  }catch(e){setLoading(false);setErr("Error. Try again.");}};
+    setLoading(true);setErr("");
+    const {user,needsConfirm,error}=await signUp({name:name.trim(),phone:phone.trim(),password:pass,role});
+    setLoading(false);
+    if(error){setErr(error);return;}
+    if(needsConfirm){setErr("Account created. Check your email to confirm, then log in.");return;}
+    if(user)onLogin(user);
+  };
 
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:C.bg,
@@ -262,7 +270,7 @@ export function SignupScreen({role,onBack,onSwitch,onLogin}){
           <Inp label="Phone Number *" type="tel" val={phone} set={setPhone}
             ph="+91 00000 00000" icon="📱"/>
           <Inp label="Password *" type={showP?"text":"password"}
-            val={pass} set={setPass} ph="Min 4 characters" icon="🔒"
+            val={pass} set={setPass} ph="Min 6 characters" icon="🔒"
             right={<EyeBtn open={showP} onClick={()=>setShowP(s=>!s)}/>}/>
           <Inp label="Confirm Password *" type="password"
             val={conf} set={setConf} ph="Re-enter password" icon="🔑"/>
