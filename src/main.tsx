@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { getRouter } from "./router";
+import InstallAppPrompt from "./InstallAppPrompt";
 import "./mobile.css";
 
 const router = getRouter();
@@ -24,5 +25,6 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <RouterProvider router={router} />
+    <InstallAppPrompt />
   </React.StrictMode>,
 );
