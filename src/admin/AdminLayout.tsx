@@ -131,9 +131,7 @@ function Sidebar({
             LG
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: "#fff" }}>
-              Learner&apos;s
-            </div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: "#fff" }}>Learner&apos;s</div>
             <div
               style={{
                 fontSize: 16,
@@ -164,16 +162,11 @@ function Sidebar({
               background: "#EF4444",
             }}
           />
-          <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 700 }}>
-            ADMIN PANEL
-          </span>
+          <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 700 }}>ADMIN PANEL</span>
         </div>
       </div>
 
-      <nav
-        style={{ flex: 1, padding: "16px 0", overflowY: "auto" }}
-        aria-label="Admin navigation"
-      >
+      <nav style={{ flex: 1, padding: "16px 0", overflowY: "auto" }} aria-label="Admin navigation">
         {NAV.map((item) => {
           const active = activePage === item.key;
           return (
@@ -234,14 +227,8 @@ function Sidebar({
             👑
           </div>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
-              Admin
-            </div>
-            <div
-              style={{ fontSize: 11, color: "rgba(255,255,255,.45)" }}
-            >
-              Full Access
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Admin</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,.45)" }}>Full Access</div>
           </div>
         </div>
         <button
@@ -280,14 +267,8 @@ function TopBar({ title, subtitle }: { title: string; subtitle?: string }) {
       }}
     >
       <div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: C.text }}>
-          {title}
-        </div>
-        {subtitle && (
-          <div style={{ fontSize: 13, color: C.sub, marginTop: 2 }}>
-            {subtitle}
-          </div>
-        )}
+        <div style={{ fontSize: 20, fontWeight: 800, color: C.text }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 13, color: C.sub, marginTop: 2 }}>{subtitle}</div>}
       </div>
     </header>
   );
@@ -310,11 +291,7 @@ export default function AdminLayout({
         fontFamily: "'Poppins',sans-serif",
       }}
     >
-      <Sidebar
-        activePage={activePage}
-        onNavigate={onNavigate}
-        onLogout={onLogout}
-      />
+      <Sidebar activePage={activePage} onNavigate={onNavigate} onLogout={onLogout} />
       <div
         style={{
           flex: 1,
