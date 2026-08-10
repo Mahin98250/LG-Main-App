@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/lg/supabase";
 import AdminLogin from "./auth/AdminLogin";
 import AdminDashboard from "./dashboard/AdminDashboard";
+import AdminRecordsPage from "./records/AdminRecordsPage";
 import AdminLayout, {
   ADMIN_PAGE_SUBTITLES,
   ADMIN_PAGE_TITLES,
@@ -16,6 +17,10 @@ export default function AdminPortal({ initialPage = "dashboard" }: AdminPortalPr
   const [authenticated, setAuthenticated] = useState(false);
   const [activePage, setActivePage] = useState<AdminPageKey>(initialPage);
 
+  const handleAuthenticated = useCallback(() => {
+    setAuthenticated(true);
+  }, []);
+
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
     setAuthenticated(false);
@@ -23,10 +28,17 @@ export default function AdminPortal({ initialPage = "dashboard" }: AdminPortalPr
   }, []);
 
   if (!authenticated) {
-    return <AdminLogin onAuthenticated={() => setAuthenticated(true)} />;
+    return <AdminLogin onAuthenticated={handleAuthenticated} />;
   }
 
-  const pageContent = <AdminDashboard />;
+  let pageContent;
+  if (activePage === "students") {
+    pageContent = <AdminRecordsPage kind="students" />;
+  } else if (activePage === "teachers") {
+    pageContent = <AdminRecordsPage kind="teachers" />;
+  } else {
+    pageContent = <AdminDashboard />;
+  }
 
   return (
     <AdminLayout
