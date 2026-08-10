@@ -10,10 +10,15 @@ const ACCOUNT_DOMAIN = "learnersguide.in";
 const PREFIX = { teacher: "t", student: "s", parent: "p" };
 
 export const normalizeId = (loginId) =>
-  String(loginId || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  String(loginId || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 
 export const authEmail = (loginId, role) => {
-  if (String(loginId || "").includes("@")) return String(loginId).trim().toLowerCase();
+  if (String(loginId || "").includes("@")) {
+    return String(loginId).trim().toLowerCase();
+  }
   return `${PREFIX[role] || "u"}.${normalizeId(loginId)}@${ACCOUNT_DOMAIN}`;
 };
 
@@ -22,19 +27,34 @@ export const resolveRef = async (role, loginId) => {
   if (!raw) return null;
 
   if (role === "teacher") {
-    const { data, error } = await supabase.from("teachers").select("id").eq("phone", raw).limit(1).maybeSingle();
+    const { data, error } = await supabase
+      .from("teachers")
+      .select("id")
+      .eq("phone", raw)
+      .limit(1)
+      .maybeSingle();
     if (error) console.warn("Could not resolve teacher reference:", error.message);
     return data?.id || null;
   }
 
   if (role === "student") {
-    const { data, error } = await supabase.from("students").select("id").eq("sid", raw).limit(1).maybeSingle();
+    const { data, error } = await supabase
+      .from("students")
+      .select("id")
+      .eq("sid", raw)
+      .limit(1)
+      .maybeSingle();
     if (error) console.warn("Could not resolve student reference:", error.message);
     return data?.id || null;
   }
 
   if (role === "parent") {
-    const { data, error } = await supabase.from("students").select("id").eq("parentphone", raw).limit(1).maybeSingle();
+    const { data, error } = await supabase
+      .from("students")
+      .select("id")
+      .eq("parentphone", raw)
+      .limit(1)
+      .maybeSingle();
     if (error) console.warn("Could not resolve parent reference:", error.message);
     return data?.id || null;
   }
@@ -67,7 +87,10 @@ export async function signIn(loginId, password, role) {
   const appRole = data.user?.app_metadata?.role;
   if (!appRole) {
     await supabase.auth.signOut();
-    return { user: null, error: "Your account has not been approved by the institute administrator yet." };
+    return {
+      user: null,
+      error: "Your account has not been approved by the institute administrator yet.",
+    };
   }
   if (appRole !== role) {
     await supabase.auth.signOut();
@@ -77,7 +100,11 @@ export async function signIn(loginId, password, role) {
   const user = await toUser(data.user, role);
   if (role !== "admin" && !user.ref) {
     await supabase.auth.signOut();
-    return { user: null, error: "Your account is not linked to an institute profile yet. Please contact the administrator." };
+    return {
+      user: null,
+      error:
+        "Your account is not linked to an institute profile yet. Please contact the administrator.",
+    };
   }
   return { user, error: null };
 }
@@ -102,12 +129,15 @@ export async function signUp({ name, phone, password, role }) {
 
   // New accounts intentionally remain unapproved until an administrator assigns
   // server-managed app_metadata.role and app_metadata.ref.
-  if (!data.user || !data.session) return { user: null, needsConfirm: true, error: null };
+  if (!data.user || !data.session) {
+    return { user: null, needsConfirm: true, error: null };
+  }
   await supabase.auth.signOut();
   return {
     user: null,
     needsConfirm: false,
-    error: "Account created. An institute administrator must approve and link your account before you can sign in.",
+    error:
+      "Account created. An institute administrator must approve and link your account before you can sign in.",
   };
 }
 
