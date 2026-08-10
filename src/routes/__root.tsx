@@ -80,13 +80,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Learner's Guide" },
       {
         name: "description",
-        content: "School app for teachers, students and parents — classes, homework, marks and fees.",
+        content:
+          "School app for teachers, students and parents — classes, homework, marks and fees.",
       },
       { name: "author", content: "Learner's Guide" },
       { property: "og:title", content: "Learner's Guide" },
       {
         property: "og:description",
-        content: "School app for teachers, students and parents — classes, homework, marks and fees.",
+        content:
+          "School app for teachers, students and parents — classes, homework, marks and fees.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
