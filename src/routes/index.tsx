@@ -20,6 +20,8 @@ export const Route = createFileRoute("/")({
 function Index() {
   const navigate = useNavigate();
   return (
-    <RoleSelect onNext={(role: string) => navigate({ to: "/auth", search: { role, mode: "login" } })} />
+    <RoleSelect
+      onNext={(role: string) => navigate({ to: "/auth", search: { role, mode: "login" } })}
+    />
   );
 }

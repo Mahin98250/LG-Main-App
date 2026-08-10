@@ -52,9 +52,7 @@ function StatCard({
           <div style={{ color: C.sub, fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
             {label}
           </div>
-          <div style={{ color: C.text, fontSize: 30, lineHeight: 1, fontWeight: 850 }}>
-            {value}
-          </div>
+          <div style={{ color: C.text, fontSize: 30, lineHeight: 1, fontWeight: 850 }}>{value}</div>
           {sub && <div style={{ color: C.sub, fontSize: 11, marginTop: 8 }}>{sub}</div>}
         </div>
         <div
@@ -174,7 +172,9 @@ export default function AdminDashboard() {
       }}
     >
       <div style={{ marginBottom: 22 }}>
-        <h2 style={{ margin: 0, color: C.text, fontSize: 24, fontWeight: 850 }}>Institute Overview</h2>
+        <h2 style={{ margin: 0, color: C.text, fontSize: 24, fontWeight: 850 }}>
+          Institute Overview
+        </h2>
         <p style={{ margin: "6px 0 0", color: C.sub, fontSize: 13 }}>
           A live overview of your institute.
         </p>
