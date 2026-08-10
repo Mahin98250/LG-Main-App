@@ -5,6 +5,9 @@ import { supabase } from "@/lg/supabase";
  * Passwords are handled only by Supabase Auth.
  * Authorization role/ref are read from server-managed app_metadata so a user
  * cannot promote themselves by editing user_metadata in the browser.
+ *
+ * Accounts are provisioned by the institute administrator only. Public
+ * self-registration is intentionally disabled.
  */
 const ACCOUNT_DOMAIN = "learnersguide.in";
 const PREFIX = { teacher: "t", student: "s", parent: "p" };
@@ -109,35 +112,17 @@ export async function signIn(loginId, password, role) {
   return { user, error: null };
 }
 
-export async function signUp({ name, phone, password, role }) {
-  const email = authEmail(phone, role);
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-      data: { name, phone, role, loginId: phone },
-    },
-  });
-
-  if (error) {
-    const msg = /rate limit/i.test(error.message)
-      ? "Too many sign-ups from this school right now. Please try again in a few minutes."
-      : error.message;
-    return { user: null, needsConfirm: false, error: msg };
-  }
-
-  // New accounts intentionally remain unapproved until an administrator assigns
-  // server-managed app_metadata.role and app_metadata.ref.
-  if (!data.user || !data.session) {
-    return { user: null, needsConfirm: true, error: null };
-  }
-  await supabase.auth.signOut();
+/**
+ * Public registration is disabled. New accounts must be created by the
+ * institute administrator through the trusted Supabase/Auth administration
+ * workflow and then assigned app_metadata.role and app_metadata.ref.
+ */
+export async function signUp() {
   return {
     user: null,
     needsConfirm: false,
     error:
-      "Account created. An institute administrator must approve and link your account before you can sign in.",
+      "Self-registration is disabled. Please contact your institute administrator for login credentials.",
   };
 }
 
