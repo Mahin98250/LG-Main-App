@@ -101,7 +101,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: "https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap",
       },
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/LG-Main-App/favicon.ico", type: "image/x-icon" },
+      {
+        rel: "icon",
+        href: "/LG-Main-App/pwa-icon.svg",
+        type: "image/svg+xml",
+      },
+      {
+        rel: "apple-touch-icon",
+        href: "/LG-Main-App/pwa-icon.svg",
+      },
     ],
   }),
   component: RootComponent,
