@@ -7,10 +7,9 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    server: { entry: "server" },
-    // The first milestone is a static, publicly viewable deployment.
-    // SPA mode generates a deployable HTML shell and keeps routing client-side.
+    // This milestone is a static GitHub Pages deployment.
+    // Keep the default TanStack server entry so SPA shell prerendering
+    // can start its preview server correctly.
     spa: { enabled: true },
   },
 });
