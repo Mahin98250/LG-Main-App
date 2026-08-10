@@ -3,7 +3,6 @@ import { C, addR, delR, gdb, updR } from "@/lg/data";
 
 type Row = Record<string, unknown> & { id: string | number };
 type Kind = "students" | "teachers";
-
 type Props = { kind: Kind };
 
 const fields: Record<Kind, Array<{ key: string; label: string; placeholder: string }>> = {
@@ -71,12 +70,11 @@ export default function AdminRecordsPage({ kind }: Props) {
 
   const openEdit = (row: Row) => {
     setEditing(row);
-    setForm(Object.fromEntries(config.map((field) => [field.key, String(row[field.key] ?? "")]));
+    setForm(Object.fromEntries(config.map((field) => [field.key, String(row[field.key] ?? "")])));
   };
 
   const save = async () => {
-    const required = config.filter((field) => field.key === "name");
-    if (required.some((field) => !form[field.key]?.trim())) {
+    if (config.some((field) => field.key === "name" && !form[field.key]?.trim())) {
       setError("Name is required.");
       return;
     }
