@@ -8,7 +8,8 @@ import { StudentApp } from "@/lg/student";
 import { ParentApp } from "@/lg/parent";
 
 const title = "My Dashboard — Learner's Guide";
-const description = "Your Learner's Guide dashboard: classes, attendance, homework, marks and fees.";
+const description =
+  "Your Learner's Guide dashboard: classes, attendance, homework, marks and fees.";
 
 export const Route = createFileRoute("/app")({
   ssr: false,
@@ -76,7 +77,7 @@ function AppShell() {
       console.error("Unable to load portal data:", error);
       clearCache();
       setLoadError(
-        "We could not load your institute data. Please check your connection or contact the administrator."
+        "We could not load your institute data. Please check your connection or contact the administrator.",
       );
     }
     // navigate intentionally not used here directly beyond being part of the callback deps
