@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { LoginScreen } from "@/lg/authscreens";
+import { LoginScreen } from "@/lg/LoginScreen";
 
 const title = "Sign in — Learner's Guide";
 const description =
@@ -32,12 +32,5 @@ function AuthPage() {
   const goHome = () => navigate({ to: "/" });
   const onLogin = () => navigate({ to: "/app", replace: true });
 
-  return (
-    <LoginScreen
-      role={role}
-      onBack={goHome}
-      onSwitch={() => undefined}
-      onLogin={onLogin}
-    />
-  );
+  return <LoginScreen role={role} onBack={goHome} onLogin={onLogin} />;
 }
