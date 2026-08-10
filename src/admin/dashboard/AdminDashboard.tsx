@@ -52,9 +52,7 @@ function StatCard({
           <div style={{ color: C.sub, fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
             {label}
           </div>
-          <div style={{ color: C.text, fontSize: 30, lineHeight: 1, fontWeight: 850 }}>
-            {value}
-          </div>
+          <div style={{ color: C.text, fontSize: 30, lineHeight: 1, fontWeight: 850 }}>{value}</div>
           {sub && <div style={{ color: C.sub, fontSize: 11, marginTop: 8 }}>{sub}</div>}
         </div>
         <div
@@ -80,11 +78,7 @@ function Badge({ label }: { label?: string }) {
   const value = label || "—";
   const lower = value.toLowerCase();
   const color =
-    lower === "active" || lower === "paid" || lower === "present"
-      ? C.green
-      : lower === "overdue"
-        ? C.red
-        : C.gold;
+    lower === "active" || lower === "paid" || lower === "present" ? C.green : lower === "overdue" ? C.red : C.gold;
 
   return (
     <span
@@ -231,12 +225,7 @@ export default function AdminDashboard() {
           color={C.red}
           sub={`₹${metrics.pendingAmount.toLocaleString("en-IN")}`}
         />
-        <StatCard
-          icon="📝"
-          label="Active Homework"
-          value={loading ? "—" : homework.length}
-          color={C.gold}
-        />
+        <StatCard icon="📝" label="Active Homework" value={loading ? "—" : homework.length} color={C.gold} />
         <StatCard
           icon="📢"
           label="Announcements"
@@ -397,10 +386,7 @@ export default function AdminDashboard() {
             Latest Announcements 📢
           </div>
           {announcements.slice(0, 4).map((announcement) => (
-            <div
-              key={announcement.id}
-              style={{ padding: "10px 0", borderBottom: `1px solid ${C.border}` }}
-            >
+            <div key={announcement.id} style={{ padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
               <div style={{ fontWeight: 700, color: C.text, fontSize: 13, marginBottom: 5 }}>
                 {announcement.title || "Untitled announcement"}
               </div>
