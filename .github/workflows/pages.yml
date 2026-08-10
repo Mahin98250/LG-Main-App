@@ -26,7 +26,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
 
       - name: Install dependencies
         run: npm install
@@ -37,10 +36,7 @@ jobs:
       - name: Verify Pages output
         run: |
           test -f dist/index.html
-          test -f dist/404.html || cp dist/index.html dist/404.html
-
-      - name: Prepare SPA fallback
-        run: cp dist/index.html dist/404.html
+          cp dist/index.html dist/404.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
