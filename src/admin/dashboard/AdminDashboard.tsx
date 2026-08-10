@@ -174,9 +174,7 @@ export default function AdminDashboard() {
       }}
     >
       <div style={{ marginBottom: 22 }}>
-        <h2 style={{ margin: 0, color: C.text, fontSize: 24, fontWeight: 850 }}>
-          Institute Overview
-        </h2>
+        <h2 style={{ margin: 0, color: C.text, fontSize: 24, fontWeight: 850 }}>Institute Overview</h2>
         <p style={{ margin: "6px 0 0", color: C.sub, fontSize: 13 }}>
           A live overview of your institute.
         </p>
@@ -390,9 +388,7 @@ export default function AdminDashboard() {
             </div>
           ))}
           {!loading && students.length === 0 && (
-            <div style={{ color: C.sub, fontSize: 13, padding: "14px 0" }}>
-              No students found.
-            </div>
+            <div style={{ color: C.sub, fontSize: 13, padding: "14px 0" }}>No students found.</div>
           )}
         </div>
 
