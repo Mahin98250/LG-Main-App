@@ -37,15 +37,7 @@ export const ROLES = [
   },
 ];
 
-export const DAYS = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
+export const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const today = () => DAYS[new Date().getDay()];
 export const uid = () => "u" + Date.now() + Math.random().toString(36).slice(2, 6);
 
