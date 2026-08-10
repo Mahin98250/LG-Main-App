@@ -1,18 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { LoginScreen, SignupScreen } from "@/lg/authscreens";
+import { LoginScreen } from "@/lg/authscreens";
 
 const title = "Sign in — Learner's Guide";
 const description =
-  "Log in or create your Learner's Guide account as a teacher, student or parent.";
+  "Sign in to Learner's Guide with credentials provided by your institute administrator.";
 
-type AuthSearch = { role: string; mode: "login" | "signup" };
+type AuthSearch = { role: "teacher" | "student" | "parent" };
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (search: Record<string, unknown>): AuthSearch => ({
     role: ["teacher", "student", "parent"].includes(String(search["role"]))
-      ? String(search["role"])
+      ? (String(search["role"]) as AuthSearch["role"])
       : "student",
-    mode: search["mode"] === "signup" ? "signup" : "login",
   }),
   head: () => ({
     meta: [
@@ -27,17 +26,18 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const { role, mode } = Route.useSearch();
+  const { role } = Route.useSearch();
   const navigate = useNavigate();
 
   const goHome = () => navigate({ to: "/" });
   const onLogin = () => navigate({ to: "/app", replace: true });
-  const switchMode = () =>
-    navigate({ to: "/auth", search: { role, mode: mode === "login" ? "signup" : "login" } });
 
-  return mode === "signup" ? (
-    <SignupScreen role={role} onBack={goHome} onSwitch={switchMode} onLogin={onLogin} />
-  ) : (
-    <LoginScreen role={role} onBack={goHome} onSwitch={switchMode} onLogin={onLogin} />
+  return (
+    <LoginScreen
+      role={role}
+      onBack={goHome}
+      onSwitch={() => undefined}
+      onLogin={onLogin}
+    />
   );
 }
