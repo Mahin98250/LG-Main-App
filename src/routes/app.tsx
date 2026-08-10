@@ -12,7 +12,6 @@ const description =
   "Your Learner's Guide dashboard: classes, attendance, homework, marks and fees.";
 
 export const Route = createFileRoute("/app")({
-  ssr: false,
   head: () => ({
     meta: [
       { title },
@@ -80,18 +79,10 @@ function AppShell() {
         "We could not load your institute data. Please check your connection or contact the administrator.",
       );
     }
-    // navigate intentionally not used here directly beyond being part of the callback deps
   }, [navigate]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (cancelled) return;
-      await load();
-    })();
-    return () => {
-      cancelled = true;
-    };
+    void load();
   }, [load]);
 
   const handleLogout = async () => {
@@ -106,10 +97,7 @@ function AppShell() {
         label={loadError}
         action={
           <button
-            onClick={() => {
-              // call the stable load reference
-              void load();
-            }}
+            onClick={() => void load()}
             style={{
               border: 0,
               borderRadius: 12,
