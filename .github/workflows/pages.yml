@@ -34,6 +34,11 @@ jobs:
       - name: Build application
         run: npm run build
 
+      - name: Verify Pages output
+        run: |
+          test -f dist/index.html
+          test -f dist/404.html || cp dist/index.html dist/404.html
+
       - name: Prepare SPA fallback
         run: cp dist/index.html dist/404.html
 
