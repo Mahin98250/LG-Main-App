@@ -98,9 +98,7 @@ export default function AdminLogin({ onAuthenticated }: AdminLoginProps) {
             Learner&apos;s Guide
           </p>
           <h1 className="text-3xl font-bold tracking-tight">Administrator Login</h1>
-          <p className="mt-2 text-sm text-slate-400">
-            Authorized institute administrators only.
-          </p>
+          <p className="mt-2 text-sm text-slate-400">Authorized institute administrators only.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5" noValidate>
