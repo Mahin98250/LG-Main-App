@@ -127,7 +127,10 @@ export const updR = async (t, id, p) => {
     console.error("Supabase update failed [" + t + "]:", error.message);
     throw error;
   }
-  if (!data) throw new Error("No row was updated. The record may not exist or RLS may have blocked access.");
+  if (!data)
+    throw new Error(
+      "No row was updated. The record may not exist or RLS may have blocked access.",
+    );
   upsertLocal(t, data);
   return data;
 };
@@ -138,7 +141,10 @@ export const delR = async (t, id) => {
     console.error("Supabase delete failed [" + t + "]:", error.message);
     throw error;
   }
-  if (!data) throw new Error("No row was deleted. The record may not exist or RLS may have blocked access.");
+  if (!data)
+    throw new Error(
+      "No row was deleted. The record may not exist or RLS may have blocked access.",
+    );
   lsS(t, lsG(t).filter((r) => r.id !== id));
   return data;
 };
