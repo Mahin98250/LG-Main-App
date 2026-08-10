@@ -6,7 +6,7 @@ import {LGLogo,LGIcon,GLOBAL_CSS,Bubbles,Inp,WBtn,GBtn,SBtn,Card,Badge,Sec,EyeBt
    PDF UPLOAD + VIEWER HELPERS
 ═══════════════════════════════════════════════════════ */
 const MAX_PDF_BYTES=50*1024*1024;
-export function PDFUpload({onFile,label="Attach PDF (optional)"}){
+export function PDFUpload({onFile, label="Attach PDF (optional)"}){
   const ref=useRef(null);
   const [fileName,setFileName]=useState("");
   const [error,setError]=useState("");
@@ -137,30 +137,90 @@ export function MessagingPanel({user,onClose}){
   const send= async()=>{
     if(!newMsg.trim()||!to)return;
     const rec=[...lsG("students"),...lsG("teachers")].find(x=>x.id===to);
-    await addR("messages",{from:user.ref,to,fromName:user.name,toName:rec?.name||"",text:newMsg.trim(),time:new Date().toLocaleString("en-IN"),read:false});
+    await addR("messages",{from:user.ref,to,fromName:user.name,toName:rec?.name||"",
+      text:newMsg.trim(),time:new Date().toLocaleString("en-IN"),read:false});
     setAllMsgs(lsG("messages").filter(m=>m.from===user.ref||m.to===user.ref));
     setNewMsg("");
   };
   return(
-    <div style={{position:"fixed",inset:0,zIndex:550,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",fontFamily:"'Poppins',sans-serif"}}>
-      <div className="modal-sheet" style={{width:"100%",maxWidth:430,height:"88vh",background:"#fff",borderRadius:"22px 22px 0 0",display:"flex",flexDirection:"column"}}>
+    <div style={{position:"fixed",inset:0,zIndex:550,background:"rgba(0,0,0,.5)",
+      display:"flex",alignItems:"flex-end",justifyContent:"center",fontFamily:"'Poppins',sans-serif"}}>
+      <div className="modal-sheet" style={{width:"100%",maxWidth:430,height:"88vh",
+        background:"#fff",borderRadius:"22px 22px 0 0",display:"flex",flexDirection:"column"}}>
         <div style={{background:"linear-gradient(135deg,#22C55E,#16A34A)",padding:20,flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
             <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>💬 Messages</div>
             <button onClick={onClose} style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:10,width:34,height:34,color:"#fff",fontSize:16,cursor:"pointer"}}>✕</button>
           </div>
-          <select value={to} onChange={e=>setTo(e.target.value)} style={{width:"100%",padding:"10px 13px",borderRadius:11,border:"none",background:"rgba(255,255,255,.2)",color:"#fff",fontSize:13,outline:"none",fontFamily:"'Poppins',sans-serif"}}>
+          <select value={to} onChange={e=>setTo(e.target.value)}
+            style={{width:"100%",padding:"10px 13px",borderRadius:11,border:"none",
+              background:"rgba(255,255,255,.2)",color:"#fff",fontSize:13,outline:"none",
+              fontFamily:"'Poppins',sans-serif"}}>
             <option value="">── Select contact ──</option>
             {contacts.map(c=><option key={c.id} value={c.id} style={{color:"#000"}}>{c.name} ({c.role})</option>)}
           </select>
         </div>
         <div style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
           {!to&&<div style={{textAlign:"center",padding:40,color:C.sub,fontSize:13}}>👆 Select a contact to start messaging</div>}
-          {thread.map((m,i)=><div key={i} style={{display:"flex",justifyContent:m.from===user.ref?"flex-end":"flex-start"}}><div style={{maxWidth:"75%",padding:"10px 14px",borderRadius:m.from===user.ref?"18px 18px 4px 18px":"18px 18px 18px 4px",background:m.from===user.ref?"linear-gradient(135deg,#22C55E,#16A34A)":"#F0F4FF",color:m.from===user.ref?"#fff":C.text,fontSize:13,lineHeight:1.5,boxShadow:m.from===user.ref?"0 4px 12px rgba(34,197,94,.25)":"0 2px 8px rgba(27,16,96,.06)"}}>{m.text}<div style={{fontSize:10,marginTop:4,opacity:.65}}>{m.time}</div></div></div>)}
+          {thread.map((m,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:m.from===user.ref?"flex-end":"flex-start"}}>
+              <div style={{maxWidth:"75%",padding:"10px 14px",
+                borderRadius:m.from===user.ref?"18px 18px 4px 18px":"18px 18px 18px 4px",
+                background:m.from===user.ref?"linear-gradient(135deg,#22C55E,#16A34A)":"#F0F4FF",
+                color:m.from===user.ref?"#fff":C.text,fontSize:13,lineHeight:1.5,
+                boxShadow:m.from===user.ref?"0 4px 12px rgba(34,197,94,.25)":"0 2px 8px rgba(27,16,96,.06)"}}>
+                {m.text}
+                <div style={{fontSize:10,marginTop:4,opacity:.65}}>{m.time}</div>
+              </div>
+            </div>
+          ))}
           {to&&thread.length===0&&<div style={{textAlign:"center",padding:30,color:C.sub,fontSize:13}}>Start the conversation 👋</div>}
           <div ref={endRef}/>
         </div>
-        {to&&<div style={{padding:"12px 14px 22px",borderTop:"1px solid #EEF2FF",display:"flex",gap:10,flexShrink:0}}><input value={newMsg} onChange={e=>setNewMsg(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();send();}}} placeholder="Type a message..." style={{flex:1,padding:"12px 16px",borderRadius:14,border:"1.5px solid "+C.border,background:C.light,color:C.text,fontSize:14,outline:"none",fontFamily:"'Poppins',sans-serif"}}/><button onClick={send} style={{width:48,height:48,borderRadius:14,border:"none",background:"linear-gradient(135deg,#22C55E,#16A34A)",color:"#fff",fontSize:18,cursor:"pointer"}}>➤</button></div>}
+        {to&&(
+          <div style={{padding:"12px 14px 22px",borderTop:"1px solid #EEF2FF",display:"flex",gap:10,flexShrink:0}}>
+            <input value={newMsg} onChange={e=>setNewMsg(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();send();}}}
+              placeholder="Type a message..."
+              style={{flex:1,padding:"12px 16px",borderRadius:14,border:"1.5px solid "+C.border,
+                background:C.light,color:C.text,fontSize:14,outline:"none",fontFamily:"'Poppins',sans-serif"}}
+              onFocus={e=>e.target.style.borderColor="#22C55E"}
+              onBlur={e=>e.target.style.borderColor=C.border}/>
+            <button onClick={send}
+              style={{width:46,height:46,borderRadius:14,border:"none",flexShrink:0,
+                background:"linear-gradient(135deg,#22C55E,#16A34A)",
+                color:"#fff",fontSize:20,cursor:"pointer",
+                display:"flex",alignItems:"center",justifyContent:"center"}}>↑</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   ANALYTICS BAR CHART
+═══════════════════════════════════════════════════════ */
+export function BarChart({data,maxVal,color,label}){
+  const max=maxVal||Math.max(...data.map(d=>d.v),1);
+  return(
+    <div>
+      {label&&<div style={{fontSize:12,fontWeight:700,color:C.sub,marginBottom:10}}>{label}</div>}
+      <div style={{display:"flex",alignItems:"flex-end",gap:8,height:90}}>
+        {data.map((d,i)=>(
+          <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+            <div style={{fontSize:10,fontWeight:700,color}}>{d.v}{d.unit||""}</div>
+            <div style={{width:"100%",background:"#F0F4FF",borderRadius:"5px 5px 0 0",height:64,display:"flex",alignItems:"flex-end"}}>
+              <div style={{width:"100%",
+                background:"linear-gradient(180deg,"+color+","+color+"77)",
+                borderRadius:"5px 5px 0 0",
+                height:Math.max(4,(d.v/max)*100)+"%",
+                transition:"height .7s cubic-bezier(.34,1.2,.64,1)",
+                transitionDelay:(i*0.07)+"s"}}/>
+            </div>
+            <div style={{fontSize:9,color:C.sub,textAlign:"center",maxWidth:"100%",overflow:"hidden"}}>{d.label}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
