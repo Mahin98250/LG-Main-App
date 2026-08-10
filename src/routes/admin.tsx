@@ -233,11 +233,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
           </div>
           <div className="admin-nav">
             {nav.map(([key, label]) => (
-              <button
-                key={key}
-                className={tab === key ? "active" : ""}
-                onClick={() => setTab(key)}
-              >
+              <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
                 {key === "overview"
                   ? "⌂"
                   : key === "students"
@@ -367,11 +363,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
                   </div>
                 ))}
               </div>
-              <button
-                className="btn btn-primary"
-                style={{ marginTop: 14 }}
-                onClick={saveStudent}
-              >
+              <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={saveStudent}>
                 Create profile
               </button>
             </Modal>
@@ -389,11 +381,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
                   </div>
                 ))}
               </div>
-              <button
-                className="btn btn-primary"
-                style={{ marginTop: 14 }}
-                onClick={saveTeacher}
-              >
+              <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={saveTeacher}>
                 Create profile
               </button>
             </Modal>
@@ -449,13 +437,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   );
 }
 
-function StudentTable({
-  rows,
-  onDelete,
-}: {
-  rows: Student[];
-  onDelete: (id: string) => void;
-}) {
+function StudentTable({ rows, onDelete }: { rows: Student[]; onDelete: (id: string) => void }) {
   return (
     <div className="table-wrap">
       <table className="table">
@@ -503,13 +485,7 @@ function StudentTable({
   );
 }
 
-function TeacherTable({
-  rows,
-  onDelete,
-}: {
-  rows: Teacher[];
-  onDelete: (id: string) => void;
-}) {
+function TeacherTable({ rows, onDelete }: { rows: Teacher[]; onDelete: (id: string) => void }) {
   return (
     <div className="table-wrap">
       <table className="table">

@@ -128,9 +128,7 @@ export const updR = async (t, id, p) => {
     throw error;
   }
   if (!data)
-    throw new Error(
-      "No row was updated. The record may not exist or RLS may have blocked access.",
-    );
+    throw new Error("No row was updated. The record may not exist or RLS may have blocked access.");
   upsertLocal(t, data);
   return data;
 };
@@ -142,10 +140,11 @@ export const delR = async (t, id) => {
     throw error;
   }
   if (!data)
-    throw new Error(
-      "No row was deleted. The record may not exist or RLS may have blocked access.",
-    );
-  lsS(t, lsG(t).filter((r) => r.id !== id));
+    throw new Error("No row was deleted. The record may not exist or RLS may have blocked access.");
+  lsS(
+    t,
+    lsG(t).filter((r) => r.id !== id),
+  );
   return data;
 };
 

@@ -78,7 +78,11 @@ function Badge({ label }: { label?: string }) {
   const value = label || "—";
   const lower = value.toLowerCase();
   const color =
-    lower === "active" || lower === "paid" || lower === "present" ? C.green : lower === "overdue" ? C.red : C.gold;
+    lower === "active" || lower === "paid" || lower === "present"
+      ? C.green
+      : lower === "overdue"
+        ? C.red
+        : C.gold;
 
   return (
     <span
@@ -168,7 +172,9 @@ export default function AdminDashboard() {
       }}
     >
       <div style={{ marginBottom: 22 }}>
-        <h2 style={{ margin: 0, color: C.text, fontSize: 24, fontWeight: 850 }}>Institute Overview</h2>
+        <h2 style={{ margin: 0, color: C.text, fontSize: 24, fontWeight: 850 }}>
+          Institute Overview
+        </h2>
         <p style={{ margin: "6px 0 0", color: C.sub, fontSize: 13 }}>
           A live overview of your institute.
         </p>
@@ -225,7 +231,12 @@ export default function AdminDashboard() {
           color={C.red}
           sub={`₹${metrics.pendingAmount.toLocaleString("en-IN")}`}
         />
-        <StatCard icon="📝" label="Active Homework" value={loading ? "—" : homework.length} color={C.gold} />
+        <StatCard
+          icon="📝"
+          label="Active Homework"
+          value={loading ? "—" : homework.length}
+          color={C.gold}
+        />
         <StatCard
           icon="📢"
           label="Announcements"
@@ -386,7 +397,10 @@ export default function AdminDashboard() {
             Latest Announcements 📢
           </div>
           {announcements.slice(0, 4).map((announcement) => (
-            <div key={announcement.id} style={{ padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+            <div
+              key={announcement.id}
+              style={{ padding: "10px 0", borderBottom: `1px solid ${C.border}` }}
+            >
               <div style={{ fontWeight: 700, color: C.text, fontSize: 13, marginBottom: 5 }}>
                 {announcement.title || "Untitled announcement"}
               </div>
