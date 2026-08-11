@@ -9,82 +9,43 @@ type Props = { kind: Kind };
 const DEFAULT_STUDENT_PASSWORD = "1234";
 const DEFAULT_TEACHER_PASSWORD = "1234";
 const DEFAULT_PARENT_PASSWORD = "parent@1234";
+const TEACHER_SUBJECTS = ["Mathematics", "Science", "English", "History", "Geography", "Computer", "Hindi"];
+const CLASSES = ["9", "10", "11", "12"];
+const SECTIONS = ["A", "B", "C", "D"];
 
-const fields: Record<Kind, Array<{ key: string; label: string; placeholder: string }>> = {
-  students: [
-    { key: "name", label: "Full Name", placeholder: "Student full name" },
-    { key: "sid", label: "Roll Number (Login ID)", placeholder: "e.g. LG001" },
-    { key: "cls", label: "Class", placeholder: "Select class" },
-    { key: "sec", label: "Section", placeholder: "Select section" },
-    { key: "enroll", label: "Enrollment Date", placeholder: "" },
-    { key: "status", label: "Status", placeholder: "active" },
-    { key: "pass", label: "Student Password", placeholder: "Default: 1234" },
-    { key: "parentName", label: "Parent / Guardian Name", placeholder: "Parent full name" },
-    { key: "parentPhone", label: "Parent Phone (Login)", placeholder: "10-digit mobile" },
-  ],
-  teachers: [
-    { key: "name", label: "Name", placeholder: "Teacher name" },
-    { key: "subject", label: "Subject", placeholder: "Mathematics" },
-    { key: "phone", label: "Phone / Login", placeholder: "9876543210" },
-    { key: "status", label: "Status", placeholder: "active" },
-  ],
-};
+const card: React.CSSProperties = { background: "#fff", border: `1px solid ${C.border}`, borderRadius: 20, boxShadow: "0 4px 20px rgba(15,27,61,.07)" };
 
-const card: React.CSSProperties = {
-  background: "#fff",
-  border: `1px solid ${C.border}`,
-  borderRadius: 20,
-  boxShadow: "0 4px 20px rgba(15,27,61,.07)",
-};
-
-async function provision(role: "student" | "parent" | "teacher", loginId: string, password: string, name: string, ref: string) {
-  const { data, error } = await supabase.functions.invoke("admin-provision-user", {
-    body: { action: "create", role, loginId, password, name, ref },
-  });
+async function provision(role: "student" | "parent" | "teacher", loginId: string, password: string, name: string, ref: string, action: "create" | "update" | "delete" = "create", authId?: string | null) {
+  const { data, error } = await supabase.functions.invoke("admin-provision-user", { body: { action, role, loginId, password, name, ref, authId: authId || undefined } });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
-  return data as { authId: string; email: string };
+  return data as { authId?: string; email?: string; deleted?: boolean; repaired?: boolean };
 }
 
 async function nextStudentSid() {
   const rows = (await gdb("students")) as Row[];
   let max = 0;
-  for (const row of rows) {
-    const match = String(row.sid ?? "").match(/^LG(\d+)$/i);
-    if (match) max = Math.max(max, Number(match[1]));
-  }
+  for (const row of rows) { const match = String(row.sid ?? "").match(/^LG(\d+)$/i); if (match) max = Math.max(max, Number(match[1])); }
   return `LG${String(max + 1).padStart(3, "0")}`;
 }
 
 async function nextTeacherTid() {
   const rows = (await gdb("teachers")) as Row[];
   let max = 0;
-  for (const row of rows) {
-    const match = String(row.tid ?? "").match(/^LGT(\d+)$/i);
-    if (match) max = Math.max(max, Number(match[1]));
-  }
+  for (const row of rows) { const match = String(row.tid ?? "").match(/^LGT(\d+)$/i); if (match) max = Math.max(max, Number(match[1])); }
   return `LGT${String(max + 1).padStart(2, "0")}`;
 }
 
-function Input({ label, value, onChange, placeholder, required, type = "text", disabled = false }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; required?: boolean; type?: string; disabled?: boolean }) {
-  return (
-    <label style={{ display: "block", minWidth: 0 }}>
-      <span style={{ display: "block", fontSize: 12, fontWeight: 750, color: C.sub, marginBottom: 6 }}>{label}{required && <span style={{ color: C.red }}> *</span>}</span>
-      <input type={type} required={required} disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ width: "100%", boxSizing: "border-box", padding: "11px 13px", border: `1.5px solid ${C.border}`, borderRadius: 11, background: disabled ? "#F1F5F9" : "#F8FAFF", color: C.text, outline: "none" }} />
-    </label>
-  );
+function Input({ label, value, onChange, placeholder, required, type = "text", disabled = false, note }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; required?: boolean; type?: string; disabled?: boolean; note?: string }) {
+  return <label style={{ display: "block", minWidth: 0 }}><span style={{ display: "block", fontSize: 12, fontWeight: 750, color: C.sub, marginBottom: 6 }}>{label}{required && <span style={{ color: C.red }}> *</span>}</span><input type={type} required={required} disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ width: "100%", boxSizing: "border-box", padding: "11px 13px", border: `1.5px solid ${C.border}`, borderRadius: 11, background: disabled ? "#F1F5F9" : "#F8FAFF", color: C.text, outline: "none" }} />{note && <span style={{ display: "block", marginTop: 5, fontSize: 10, color: C.sub }}>{note}</span>}</label>;
 }
 
 function Select({ label, value, onChange, options, required }: { label: string; value: string; onChange: (value: string) => void; options: string[]; required?: boolean }) {
-  return (
-    <label style={{ display: "block", minWidth: 0 }}>
-      <span style={{ display: "block", fontSize: 12, fontWeight: 750, color: C.sub, marginBottom: 6 }}>{label}{required && <span style={{ color: C.red }}> *</span>}</span>
-      <select required={required} value={value} onChange={(e) => onChange(e.target.value)} style={{ width: "100%", boxSizing: "border-box", padding: "11px 13px", border: `1.5px solid ${C.border}`, borderRadius: 11, background: "#F8FAFF", color: C.text, outline: "none" }}>
-        <option value="">Select…</option>
-        {options.map((option) => <option key={option} value={option}>{option}</option>)}
-      </select>
-    </label>
-  );
+  return <label style={{ display: "block", minWidth: 0 }}><span style={{ display: "block", fontSize: 12, fontWeight: 750, color: C.sub, marginBottom: 6 }}>{label}{required && <span style={{ color: C.red }}> *</span>}</span><select required={required} value={value} onChange={(e) => onChange(e.target.value)} style={{ width: "100%", boxSizing: "border-box", padding: "11px 13px", border: `1.5px solid ${C.border}`, borderRadius: 11, background: "#F8FAFF", color: C.text, outline: "none" }}><option value="">Select…</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>;
+}
+
+function MultiSelect({ label, value, onChange, options, required }: { label: string; value: string[]; onChange: (value: string[]) => void; options: string[]; required?: boolean }) {
+  return <div><span style={{ display: "block", fontSize: 12, fontWeight: 750, color: C.sub, marginBottom: 6 }}>{label}{required && <span style={{ color: C.red }}> *</span>}</span><div style={{ display: "flex", flexWrap: "wrap", gap: 7, padding: 10, border: `1.5px solid ${C.border}`, borderRadius: 11, background: "#F8FAFF" }}>{options.map((option) => { const checked = value.includes(option); return <button key={option} type="button" onClick={() => onChange(checked ? value.filter((item) => item !== option) : [...value, option])} style={{ border: `1px solid ${checked ? C.accent : C.border}`, borderRadius: 9, padding: "7px 10px", background: checked ? "#EEF2FF" : "#fff", color: checked ? C.accent : C.sub, fontWeight: checked ? 800 : 600, cursor: "pointer", fontSize: 11 }}>{checked ? "✓ " : ""}{option}</button>; })}</div></div>;
 }
 
 export default function AdminRecordsPage({ kind }: Props) {
@@ -96,47 +57,22 @@ export default function AdminRecordsPage({ kind }: Props) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Row | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [teacherSubjects, setTeacherSubjects] = useState<string[]>([]);
+  const [teacherClasses, setTeacherClasses] = useState<string[]>([]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try { setRows((await gdb(kind)) as Row[]); }
-    catch (err) { setError(err instanceof Error ? err.message : "Unable to load records."); }
-    finally { setLoading(false); }
-  }, [kind]);
-
+  const load = useCallback(async () => { setLoading(true); setError(""); try { setRows((await gdb(kind)) as Row[]); } catch (err) { setError(err instanceof Error ? err.message : "Unable to load records."); } finally { setLoading(false); } }, [kind]);
   useEffect(() => { void load(); }, [load]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((row) => Object.values(row).some((value) => String(value ?? "").toLowerCase().includes(q)));
-  }, [query, rows]);
+  const filtered = useMemo(() => { const q = query.trim().toLowerCase(); if (!q) return rows; return rows.filter((row) => Object.values(row).some((value) => String(value ?? "").toLowerCase().includes(q))); }, [query, rows]);
 
-  const openNew = async () => {
-    setEditing(null); setError(""); setSuccess("");
-    if (kind === "students") {
-      const sid = await nextStudentSid();
-      setForm({ name: "", sid, cls: "", sec: "", enroll: new Date().toISOString().slice(0, 10), status: "active", pass: DEFAULT_STUDENT_PASSWORD, parentName: "", parentPhone: "" });
-    } else {
-      const tid = await nextTeacherTid();
-      setForm({ name: "", tid, subject: "", phone: "", status: "active" });
-    }
-  };
+  const openNew = async () => { setEditing(null); setError(""); setSuccess(""); setTeacherSubjects([]); setTeacherClasses([]); if (kind === "students") { const sid = await nextStudentSid(); setForm({ name: "", sid, cls: "", sec: "", enroll: new Date().toISOString().slice(0, 10), status: "active", pass: DEFAULT_STUDENT_PASSWORD, parentName: "", parentPhone: "" }); } else { const tid = await nextTeacherTid(); setForm({ name: "", tid, subject: "", phone: "", status: "active", pass: DEFAULT_TEACHER_PASSWORD }); } };
 
-  const openEdit = (row: Row) => {
-    setEditing(row); setError(""); setSuccess("");
-    if (kind === "students") {
-      setForm({ name: String(row.name ?? ""), sid: String(row.sid ?? ""), cls: String(row.cls ?? ""), sec: String(row.sec ?? ""), enroll: String(row.enroll ?? ""), status: String(row.status ?? "active"), pass: String(row.pass ?? DEFAULT_STUDENT_PASSWORD), parentName: String(row.parentName ?? row.parentname ?? ""), parentPhone: String(row.parentPhone ?? row.parentphone ?? "") });
-    } else {
-      setForm({ name: String(row.name ?? ""), tid: String(row.tid ?? ""), subject: String(row.subject ?? ""), phone: String(row.phone ?? ""), status: String(row.status ?? "active") });
-    }
-  };
+  const openEdit = (row: Row) => { setEditing(row); setError(""); setSuccess(""); if (kind === "students") { setForm({ name: String(row.name ?? ""), sid: String(row.sid ?? ""), cls: String(row.cls ?? ""), sec: String(row.sec ?? ""), enroll: String(row.enroll ?? ""), status: String(row.status ?? "active"), pass: String(row.pass ?? DEFAULT_STUDENT_PASSWORD), parentName: String(row.parentName ?? row.parentname ?? ""), parentPhone: String(row.parentPhone ?? row.parentphone ?? "") }); } else { const rawSubjects = String(row.subjects ?? row.subject ?? ""); const rawClasses = Array.isArray(row.classes) ? row.classes.map(String) : String(row.classes ?? "").split(",").map((v) => v.trim()).filter(Boolean); setTeacherSubjects(rawSubjects.split(",").map((v) => v.trim()).filter(Boolean)); setTeacherClasses(rawClasses); setForm({ name: String(row.name ?? ""), tid: String(row.tid ?? ""), subject: rawSubjects, phone: String(row.phone ?? ""), status: String(row.status ?? "active"), pass: String(row.pass ?? DEFAULT_TEACHER_PASSWORD) }); } };
 
-  const closeForm = () => { setForm({}); setEditing(null); setError(""); };
-
+  const closeForm = () => { if (!saving) { setForm({}); setEditing(null); setTeacherSubjects([]); setTeacherClasses([]); setError(""); } };
   const save = async () => {
     if (!form.name?.trim()) { setError("Full Name is required."); return; }
+    if (kind === "teachers" && (!form.phone?.trim() || teacherSubjects.length === 0)) { setError("Fill Name, Phone, and select at least one Subject."); return; }
     setSaving(true); setError(""); setSuccess("");
     try {
       if (editing) {
@@ -144,107 +80,39 @@ export default function AdminRecordsPage({ kind }: Props) {
           await updR("students", editing.id, { name: form.name.trim(), sid: form.sid.trim(), cls: form.cls.trim(), sec: form.sec.trim(), parentname: form.parentName.trim(), parentphone: form.parentPhone.trim(), parentName: form.parentName.trim(), parentPhone: form.parentPhone.trim(), enroll: form.enroll, status: form.status, pass: form.pass || DEFAULT_STUDENT_PASSWORD });
           setSuccess("Student updated successfully!");
         } else {
-          await updR("teachers", editing.id, { name: form.name.trim(), tid: form.tid.trim(), subject: form.subject.trim(), phone: form.phone.trim(), status: form.status });
+          const subject = teacherSubjects.join(", ");
+          const classes = teacherClasses;
+          await updR("teachers", editing.id, { name: form.name.trim(), tid: form.tid.trim(), subject, subjects: classes.length >= 0 ? teacherSubjects : teacherSubjects, phone: form.phone.trim(), status: form.status, pass: form.pass || DEFAULT_TEACHER_PASSWORD, classes, updated_at: new Date().toISOString() });
+          const users = (await gdb("users")) as Row[];
+          const user = users.find((u) => String(u.ref ?? "") === String(editing.id) && String(u.role ?? "") === "teacher");
+          const auth = await provision("teacher", form.phone.trim(), form.pass || DEFAULT_TEACHER_PASSWORD, form.name.trim(), String(editing.id), "update", user?.auth_id ? String(user.auth_id) : null);
+          if (auth.authId) { if (user) await updR("users", user.id, { name: form.name.trim(), phone: form.phone.trim(), email: auth.email, status: form.status, pass: form.pass || DEFAULT_TEACHER_PASSWORD, auth_id: auth.authId }); else await addR("users", { id: `u-${auth.authId}`, name: form.name.trim(), phone: form.phone.trim(), email: auth.email, role: "teacher", ref: editing.id, status: form.status, pass: form.pass || DEFAULT_TEACHER_PASSWORD, auth_id: auth.authId }); }
           setSuccess("Teacher updated successfully!");
         }
       } else if (kind === "students") {
         if (!form.cls || !form.sec || !form.parentName?.trim() || !form.parentPhone?.trim()) throw new Error("Fill all required student and parent fields.");
         const student = await addR("students", { id: `s-${Date.now()}`, name: form.name.trim(), sid: form.sid, cls: form.cls, sec: form.sec, parentname: form.parentName.trim(), parentphone: form.parentPhone.trim(), parentName: form.parentName.trim(), parentPhone: form.parentPhone.trim(), enroll: form.enroll, status: form.status || "active", pass: form.pass || DEFAULT_STUDENT_PASSWORD });
-        try {
-          const studentAuth = await provision("student", form.sid, form.pass || DEFAULT_STUDENT_PASSWORD, form.name.trim(), String(student.id));
-          const parentAuth = await provision("parent", form.parentPhone.trim(), DEFAULT_PARENT_PASSWORD, form.parentName.trim(), String(student.id));
-          await updR("students", student.id, { parent: parentAuth.authId });
-          await addR("users", { id: `u-${studentAuth.authId}`, name: form.name.trim(), phone: form.sid, email: studentAuth.email, role: "student", ref: student.id, status: "active", pass: form.pass || DEFAULT_STUDENT_PASSWORD, auth_id: studentAuth.authId });
-          await addR("users", { id: `u-${parentAuth.authId}`, name: form.parentName.trim(), phone: form.parentPhone.trim(), email: parentAuth.email, role: "parent", ref: student.id, status: "active", pass: DEFAULT_PARENT_PASSWORD, auth_id: parentAuth.authId });
-          setSuccess(`Student "${form.name.trim()}" (SID: ${form.sid}) created! Student login: ${form.sid} · Password: ${form.pass || DEFAULT_STUDENT_PASSWORD} · Parent login: ${form.parentPhone} · Password: ${DEFAULT_PARENT_PASSWORD}`);
-        } catch (accountError) {
-          await delR("students", student.id);
-          throw new Error(`Account creation failed, so the student was rolled back: ${accountError instanceof Error ? accountError.message : "Unknown error"}`);
-        }
+        try { const studentAuth = await provision("student", form.sid, form.pass || DEFAULT_STUDENT_PASSWORD, form.name.trim(), String(student.id)); const parentAuth = await provision("parent", form.parentPhone.trim(), DEFAULT_PARENT_PASSWORD, form.parentName.trim(), String(student.id)); await updR("students", student.id, { parent: parentAuth.authId }); await addR("users", { id: `u-${studentAuth.authId}`, name: form.name.trim(), phone: form.sid, email: studentAuth.email, role: "student", ref: student.id, status: "active", pass: form.pass || DEFAULT_STUDENT_PASSWORD, auth_id: studentAuth.authId }); await addR("users", { id: `u-${parentAuth.authId}`, name: form.parentName.trim(), phone: form.parentPhone.trim(), email: parentAuth.email, role: "parent", ref: student.id, status: "active", pass: DEFAULT_PARENT_PASSWORD, auth_id: parentAuth.authId }); setSuccess(`Student "${form.name.trim()}" (SID: ${form.sid}) created! Student login: ${form.sid} · Password: ${form.pass || DEFAULT_STUDENT_PASSWORD} · Parent login: ${form.parentPhone} · Password: ${DEFAULT_PARENT_PASSWORD}`); } catch (accountError) { await delR("students", student.id); throw new Error(`Account creation failed, so the student was rolled back: ${accountError instanceof Error ? accountError.message : "Unknown error"}`); }
       } else {
-        const teacher = await addR("teachers", { id: `t-${Date.now()}`, name: form.name.trim(), tid: form.tid, subject: form.subject.trim(), phone: form.phone.trim(), classes: [], status: form.status || "active" });
-        try {
-          const auth = await provision("teacher", form.phone.trim() || form.tid, DEFAULT_TEACHER_PASSWORD, form.name.trim(), String(teacher.id));
-          await addR("users", { id: `u-${auth.authId}`, name: form.name.trim(), phone: form.phone.trim(), email: auth.email, role: "teacher", ref: teacher.id, status: "active", pass: DEFAULT_TEACHER_PASSWORD, auth_id: auth.authId });
-          setSuccess(`${form.tid} created. Default password: ${DEFAULT_TEACHER_PASSWORD}`);
-        } catch (accountError) {
-          await delR("teachers", teacher.id);
-          throw new Error(`Account creation failed, so the teacher was rolled back: ${accountError instanceof Error ? accountError.message : "Unknown error"}`);
-        }
+        const teacher = await addR("teachers", { id: `t-${Date.now()}`, name: form.name.trim(), tid: form.tid, subject: teacherSubjects.join(", "), subjects: teacherSubjects, phone: form.phone.trim(), pass: form.pass || DEFAULT_TEACHER_PASSWORD, classes: teacherClasses, status: form.status || "active" });
+        try { const auth = await provision("teacher", form.phone.trim() || form.tid, form.pass || DEFAULT_TEACHER_PASSWORD, form.name.trim(), String(teacher.id)); await addR("users", { id: `u-${auth.authId}`, name: form.name.trim(), phone: form.phone.trim(), email: auth.email, role: "teacher", ref: teacher.id, status: "active", pass: form.pass || DEFAULT_TEACHER_PASSWORD, auth_id: auth.authId }); setSuccess(`Teacher "${form.name.trim()}" created! Login ID: ${form.phone.trim()} · Password: ${form.pass || DEFAULT_TEACHER_PASSWORD}`); } catch (accountError) { await delR("teachers", teacher.id); throw new Error(`Account creation failed, so the teacher was rolled back: ${accountError instanceof Error ? accountError.message : "Unknown error"}`); }
       }
       closeForm(); await load();
-    } catch (err) { setError(err instanceof Error ? err.message : "Unable to save record."); }
-    finally { setSaving(false); }
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to save record."); } finally { setSaving(false); }
   };
 
-  const remove = async (row: Row) => {
-    if (!window.confirm(`Delete ${String(row.name || "this record")}?`)) return;
-    setError(""); setSuccess("");
-    try { await delR(kind, row.id); setRows((current) => current.filter((item) => item.id !== row.id)); setSuccess(kind === "students" ? "Student and linked record deleted." : "Teacher deleted."); }
-    catch (err) { setError(err instanceof Error ? err.message : "Unable to delete record."); }
-  };
+  const remove = async (row: Row) => { if (!window.confirm(kind === "teachers" ? "Delete this teacher and their account?" : `Delete ${String(row.name || "this record")}?`)) return; setError(""); setSuccess(""); try { if (kind === "teachers") { const users = (await gdb("users")) as Row[]; for (const user of users.filter((u) => String(u.ref ?? "") === String(row.id) && String(u.role ?? "") === "teacher")) { try { await provision("teacher", String(user.phone ?? row.phone ?? row.tid), String(user.pass ?? DEFAULT_TEACHER_PASSWORD), String(row.name ?? "Teacher"), String(row.id), "delete", user.auth_id ? String(user.auth_id) : null); } catch { /* already deleted Auth users are harmless */ } await delR("users", user.id); } } await delR(kind, row.id); setRows((current) => current.filter((item) => item.id !== row.id)); setSuccess(kind === "teachers" ? "Teacher and account deleted." : "Student and linked record deleted."); } catch (err) { setError(err instanceof Error ? err.message : "Unable to delete record."); } };
 
   const isStudent = kind === "students";
   const hasForm = Object.keys(form).length > 0;
-
-  return (
-    <div style={{ padding: 28, background: "#F7F9FF", minHeight: "100%" }}>
-      {success && <div className="fu" style={{ background: "#DCFCE7", borderRadius: 14, padding: "12px 18px", marginBottom: 18, color: "#16A34A", fontWeight: 700, fontSize: 14 }}>✅ {success}</div>}
-      {error && <div style={{ ...card, padding: 14, marginBottom: 16, color: C.red, background: "#FFF7F7" }}>{error}</div>}
-
-      <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 20 }}>
-        <div style={{ flex: 1, minWidth: 220 }}><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="🔍  Search by name or ID…" style={{ width: "100%", boxSizing: "border-box", padding: "10px 16px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: "#fff", color: C.text, fontSize: 14, outline: "none" }} /></div>
-        <button type="button" onClick={() => void openNew()} style={{ border: 0, borderRadius: 12, padding: "11px 16px", background: C.accent, color: "#fff", fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>🎓 + Add {isStudent ? "Student" : "Teacher"}</button>
-      </div>
-
-      <div style={{ ...card, overflow: "hidden" }}>
-        {loading ? <div style={{ padding: 28, color: C.sub }}>Loading records...</div> : filtered.length === 0 ? <div style={{ padding: 40, color: C.sub, textAlign: "center" }}>No records found.</div> : (
-          <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", minWidth: isStudent ? 900 : 650 }}><thead><tr>
-            {(isStudent ? ["Roll No", "Student Name", "Class", "Parent Name", "Parent Phone", "Status", "Login ID"] : ["Teacher ID", "Name", "Subject", "Phone / Login", "Status"]).map((head) => <th key={head} style={{ background: "#F8FAFF", padding: "12px 14px", textAlign: "left", color: C.sub, fontSize: 12, whiteSpace: "nowrap" }}>{head}</th>)}
-            <th style={{ background: "#F8FAFF", padding: "12px 14px", textAlign: "left", color: C.sub, fontSize: 12 }}>Actions</th>
-          </tr></thead><tbody>{filtered.map((row) => <tr key={String(row.id)} className="row-hover">
-            {isStudent ? <>
-              <td style={{ padding: "12px 14px", fontSize: 13, whiteSpace: "nowrap" }}>{String(row.sid ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, fontWeight: 650, whiteSpace: "nowrap" }}>{String(row.name ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, whiteSpace: "nowrap" }}>{String(row.cls ?? "—")}-{String(row.sec ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, whiteSpace: "nowrap" }}>{String(row.parentName ?? row.parentname ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, whiteSpace: "nowrap" }}>{String(row.parentPhone ?? row.parentphone ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 12, whiteSpace: "nowrap" }}><span style={{ background: String(row.status).toLowerCase() === "inactive" ? "#F1F5F9" : "#DCFCE7", color: String(row.status).toLowerCase() === "inactive" ? "#64748B" : "#16A34A", padding: "3px 10px", borderRadius: 20, fontWeight: 800 }}>{String(row.status ?? "active").toUpperCase()}</span></td><td style={{ padding: "12px 14px", fontSize: 12, color: C.sub, fontFamily: "monospace", whiteSpace: "nowrap" }}>{String(row.sid ?? "—")}</td>
-            </> : <><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.tid ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, fontWeight: 650 }}>{String(row.name ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.subject ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.phone ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 12 }}>{String(row.status ?? "active").toUpperCase()}</td></>}
-            <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}><button type="button" onClick={() => openEdit(row)} style={{ border: `1px solid ${C.accent}`, background: "transparent", color: C.accent, borderRadius: 8, padding: "7px 10px", cursor: "pointer", marginRight: 6 }}>Edit</button><button type="button" onClick={() => void remove(row)} style={{ border: 0, background: "#FFF1F2", color: C.red, borderRadius: 8, padding: "7px 10px", cursor: "pointer" }}>🗑</button></td>
-          </tr>)}</tbody></table></div>
-        )}
-      </div>
-
-      {hasForm && <div className="modal-backdrop" onClick={closeForm} style={{ position: "fixed", inset: 0, background: "rgba(15,27,61,.6)", zIndex: 100, display: "grid", placeItems: "center", padding: 16 }}>
-        <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 22, width: "min(900px,100%)", maxHeight: "92vh", overflowY: "auto", padding: 26, boxShadow: "0 24px 72px rgba(15,27,61,.25)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}><h2 style={{ margin: 0, fontSize: 19, color: C.text }}>{editing ? `Edit ${isStudent ? "Student" : "Teacher"}` : `Add New ${isStudent ? "Student" : "Teacher"}`}</h2><button type="button" onClick={closeForm} style={{ border: 0, background: "#F8FAFF", color: C.sub, borderRadius: 9, padding: 8, cursor: "pointer" }}>✕</button></div>
-          {isStudent ? <>
-            <div style={{ background: "#F0F9FF", borderRadius: 14, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#0284C7", fontWeight: 600, whiteSpace: "pre-line" }}>{editing ? "ℹ️ Edit student details below." : "ℹ️ When you add a student, the system automatically creates:\n• Student login (Roll No + password)\n• Parent login (Parent phone + password)"}</div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 12, padding: "6px 0", borderBottom: `2px solid ${C.border}` }}>👨‍🎓 Student Information</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
-              <Input label="Full Name" value={form.name ?? ""} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Student full name" required />
-              <Input label="Roll Number (Login ID)" value={form.sid ?? ""} onChange={(v) => setForm((f) => ({ ...f, sid: v }))} placeholder="e.g. LG001" required disabled={!editing} />
-              <Select label="Class" value={form.cls ?? ""} onChange={(v) => setForm((f) => ({ ...f, cls: v }))} options={["9", "10", "11", "12"]} required />
-              <Select label="Section" value={form.sec ?? ""} onChange={(v) => setForm((f) => ({ ...f, sec: v }))} options={["A", "B", "C", "D"]} required />
-              <Input label="Enrollment Date" type="date" value={form.enroll ?? ""} onChange={(v) => setForm((f) => ({ ...f, enroll: v }))} />
-              <Select label="Status" value={form.status ?? "active"} onChange={(v) => setForm((f) => ({ ...f, status: v }))} options={["active", "inactive"]} />
-              <Input label="Student Password" value={form.pass ?? DEFAULT_STUDENT_PASSWORD} onChange={(v) => setForm((f) => ({ ...f, pass: v }))} placeholder="Default: 1234" required />
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, margin: "18px 0 12px", padding: "6px 0", borderBottom: `2px solid ${C.border}` }}>👨‍👩‍👧 Parent Information</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
-              <Input label="Parent / Guardian Name" value={form.parentName ?? ""} onChange={(v) => setForm((f) => ({ ...f, parentName: v }))} placeholder="Parent full name" required />
-              <Input label="Parent Phone (Login)" value={form.parentPhone ?? ""} onChange={(v) => setForm((f) => ({ ...f, parentPhone: v }))} placeholder="10-digit mobile" required />
-            </div>
-            <div style={{ background: "#FFF7ED", borderRadius: 12, padding: "10px 14px", margin: "16px 0 20px", fontSize: 12, color: "#92400E", fontWeight: 600 }}>🔒 Parent default password: <strong>{DEFAULT_PARENT_PASSWORD}</strong> — they can change it after first login.</div>
-          </> : <>
-            <div style={{ background: "#F0F9FF", borderRadius: 14, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#0284C7", fontWeight: 600 }}>{editing ? "ℹ️ Edit teacher details below." : "ℹ️ Teacher login account is created automatically."}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
-              <Input label="Full Name" value={form.name ?? ""} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Teacher full name" required />
-              <Input label="Teacher ID" value={form.tid ?? ""} onChange={(v) => setForm((f) => ({ ...f, tid: v }))} placeholder="e.g. LGT01" disabled />
-              <Input label="Subject" value={form.subject ?? ""} onChange={(v) => setForm((f) => ({ ...f, subject: v }))} placeholder="Mathematics" required />
-              <Input label="Phone / Login" value={form.phone ?? ""} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} placeholder="9876543210" required />
-              <Select label="Status" value={form.status ?? "active"} onChange={(v) => setForm((f) => ({ ...f, status: v }))} options={["active", "inactive"]} />
-            </div>
-          </>}
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4, flexWrap: "wrap" }}><button type="button" onClick={closeForm} style={{ border: `1.5px solid ${C.sub}`, background: "transparent", color: C.sub, borderRadius: 11, padding: "10px 16px", fontWeight: 700, cursor: "pointer" }}>Cancel</button><button type="button" onClick={() => void save()} disabled={saving} style={{ border: 0, background: C.accent, color: "#fff", borderRadius: 11, padding: "10px 16px", fontWeight: 800, cursor: saving ? "wait" : "pointer", opacity: saving ? .7 : 1 }}>{saving ? "Creating accounts…" : editing ? "Save Changes" : `${isStudent ? "🎓 Add Student + Create Accounts" : "👨‍🏫 Add Teacher + Create Account"}`}</button></div>
-        </div>
-      </div>}
-    </div>
-  );
+  return <div style={{ padding: 28, background: "#F7F9FF", minHeight: "100%" }}>
+    {success && <div className="fu" style={{ background: "#DCFCE7", borderRadius: 14, padding: "12px 18px", marginBottom: 18, color: "#16A34A", fontWeight: 700, fontSize: 14 }}>✅ {success}</div>}
+    {error && <div style={{ ...card, padding: 14, marginBottom: 16, color: C.red, background: "#FFF7F7" }}>{error}</div>}
+    <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 20 }}><div style={{ flex: 1, minWidth: 220 }}><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="🔍  Search by name or ID…" style={{ width: "100%", boxSizing: "border-box", padding: "10px 16px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: "#fff", color: C.text, fontSize: 14, outline: "none" }} /></div><button type="button" onClick={() => void openNew()} style={{ border: 0, borderRadius: 12, padding: "11px 16px", background: C.accent, color: "#fff", fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>👨‍🏫 + Add {isStudent ? "Student" : "Teacher"}</button></div>
+    <div style={{ ...card, overflow: "hidden" }}>{loading ? <div style={{ padding: 28, color: C.sub }}>Loading records...</div> : filtered.length === 0 ? <div style={{ padding: 40, color: C.sub, textAlign: "center" }}>No records found.</div> : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", minWidth: isStudent ? 900 : 850 }}><thead><tr>{(isStudent ? ["Roll No", "Student Name", "Class", "Parent Name", "Parent Phone", "Status", "Login ID"] : ["Teacher ID", "Name", "Subject", "Phone (Login)", "Assigned Classes", "Status"]).map((head) => <th key={head} style={{ background: "#F8FAFF", padding: "12px 14px", textAlign: "left", color: C.sub, fontSize: 12, whiteSpace: "nowrap" }}>{head}</th>)}<th style={{ background: "#F8FAFF", padding: "12px 14px", textAlign: "left", color: C.sub, fontSize: 12 }}>Actions</th></tr></thead><tbody>{filtered.map((row) => <tr key={String(row.id)} className="row-hover">{isStudent ? <><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.sid ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, fontWeight: 650 }}>{String(row.name ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.cls ?? "—")}-{String(row.sec ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.parentName ?? row.parentname ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.parentPhone ?? row.parentphone ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 12 }}><span style={{ background: String(row.status).toLowerCase() === "inactive" ? "#F1F5F9" : "#DCFCE7", color: String(row.status).toLowerCase() === "inactive" ? "#64748B" : "#16A34A", padding: "3px 10px", borderRadius: 20, fontWeight: 800 }}>{String(row.status ?? "active").toUpperCase()}</span></td><td style={{ padding: "12px 14px", fontSize: 12, color: C.sub, fontFamily: "monospace" }}>{String(row.sid ?? "—")}</td></> : <><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.tid ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, fontWeight: 650 }}>{String(row.name ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.subject ?? row.subjects ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.phone ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 12 }}>{(Array.isArray(row.classes) ? row.classes : String(row.classes ?? "").split(",").map((v) => v.trim()).filter(Boolean)).join(", ") || "—"}</td><td style={{ padding: "12px 14px", fontSize: 12 }}><span style={{ background: String(row.status).toLowerCase() === "inactive" ? "#F1F5F9" : "#DCFCE7", color: String(row.status).toLowerCase() === "inactive" ? "#64748B" : "#16A34A", padding: "3px 10px", borderRadius: 20, fontWeight: 800 }}>{String(row.status ?? "active").toUpperCase()}</span></td></>}<td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}><button type="button" onClick={() => openEdit(row)} style={{ border: `1px solid ${C.accent}`, background: "transparent", color: C.accent, borderRadius: 8, padding: "7px 10px", cursor: "pointer", marginRight: 6 }}>Edit</button><button type="button" onClick={() => void remove(row)} style={{ border: 0, background: "#FFF1F2", color: C.red, borderRadius: 8, padding: "7px 10px", cursor: "pointer" }}>🗑</button></td></tr>)}</tbody></table></div>}</div>
+    {hasForm && <div className="modal-backdrop" onClick={closeForm} style={{ position: "fixed", inset: 0, background: "rgba(15,27,61,.6)", zIndex: 100, display: "grid", placeItems: "center", padding: 16 }}><div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 22, width: "min(900px,100%)", maxHeight: "92vh", overflowY: "auto", padding: 26, boxShadow: "0 24px 72px rgba(15,27,61,.25)" }}><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}><h2 style={{ margin: 0, fontSize: 19, color: C.text }}>{editing ? `Edit ${isStudent ? "Student" : "Teacher"}` : `Add New ${isStudent ? "Student" : "Teacher"}`}</h2><button type="button" onClick={closeForm} style={{ border: 0, background: "#F8FAFF", color: C.sub, borderRadius: 9, padding: 8, cursor: "pointer" }}>✕</button></div>
+      {isStudent ? <><div style={{ background: "#F0F9FF", borderRadius: 14, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#0284C7", fontWeight: 600, whiteSpace: "pre-line" }}>{editing ? "ℹ️ Edit student details below." : "ℹ️ When you add a student, the system automatically creates:\n• Student login (Roll No + password)\n• Parent login (Parent phone + password)"}</div><div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 12, padding: "6px 0", borderBottom: `2px solid ${C.border}` }}>👨‍🎓 Student Information</div><div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}><Input label="Full Name" value={form.name ?? ""} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Student full name" required /><Input label="Roll Number (Login ID)" value={form.sid ?? ""} onChange={(v) => setForm((f) => ({ ...f, sid: v }))} placeholder="e.g. LG001" required disabled={!editing} /><Select label="Class" value={form.cls ?? ""} onChange={(v) => setForm((f) => ({ ...f, cls: v }))} options={CLASSES} required /><Select label="Section" value={form.sec ?? ""} onChange={(v) => setForm((f) => ({ ...f, sec: v }))} options={SECTIONS} required /><Input label="Enrollment Date" type="date" value={form.enroll ?? ""} onChange={(v) => setForm((f) => ({ ...f, enroll: v }))} /><Select label="Status" value={form.status ?? "active"} onChange={(v) => setForm((f) => ({ ...f, status: v }))} options={["active", "inactive"]} /><Input label="Student Password" value={form.pass ?? DEFAULT_STUDENT_PASSWORD} onChange={(v) => setForm((f) => ({ ...f, pass: v }))} placeholder="Default: 1234" required /></div><div style={{ fontSize: 13, fontWeight: 800, color: C.text, margin: "18px 0 12px", padding: "6px 0", borderBottom: `2px solid ${C.border}` }}>👨‍👩‍👧 Parent Information</div><div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}><Input label="Parent / Guardian Name" value={form.parentName ?? ""} onChange={(v) => setForm((f) => ({ ...f, parentName: v }))} placeholder="Parent full name" required /><Input label="Parent Phone (Login)" value={form.parentPhone ?? ""} onChange={(v) => setForm((f) => ({ ...f, parentPhone: v }))} placeholder="10-digit mobile" required /></div><div style={{ background: "#FFF7ED", borderRadius: 12, padding: "10px 14px", margin: "16px 0 20px", fontSize: 12, color: "#92400E", fontWeight: 600 }}>🔒 Parent default password: <strong>{DEFAULT_PARENT_PASSWORD}</strong> — they can change it after first login.</div></> : <><div style={{ background: "#F0F9FF", borderRadius: 14, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#0284C7", fontWeight: 600 }}>{editing ? "ℹ️ Edit teacher details below." : "ℹ️ When you add a teacher, the system automatically creates their login account."}</div><div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}><Input label="Full Name" value={form.name ?? ""} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Teacher name" required /><Input label="Teacher ID" value={form.tid ?? ""} onChange={(v) => setForm((f) => ({ ...f, tid: v }))} placeholder="e.g. LGT01" required disabled /><MultiSelect label="Subject" value={teacherSubjects} onChange={setTeacherSubjects} options={TEACHER_SUBJECTS} required /><Input label="Phone (Login ID)" value={form.phone ?? ""} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} placeholder="10-digit mobile" required note="Teacher logs in with this phone number" /><Input label="Password" value={form.pass ?? DEFAULT_TEACHER_PASSWORD} onChange={(v) => setForm((f) => ({ ...f, pass: v }))} placeholder="Default: 1234" required /><Select label="Status" value={form.status ?? "active"} onChange={(v) => setForm((f) => ({ ...f, status: v }))} options={["active", "inactive"]} /></div><div style={{ marginTop: 14 }}><MultiSelect label="Assigned Classes" value={teacherClasses} onChange={setTeacherClasses} options={CLASSES.map((c) => `Class ${c}`)} /></div></>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20, flexWrap: "wrap" }}><button type="button" onClick={closeForm} style={{ border: `1.5px solid ${C.sub}`, background: "transparent", color: C.sub, borderRadius: 11, padding: "10px 16px", fontWeight: 700, cursor: "pointer" }}>Cancel</button><button type="button" onClick={() => void save()} disabled={saving} style={{ border: 0, background: C.accent, color: "#fff", borderRadius: 11, padding: "10px 16px", fontWeight: 800, cursor: saving ? "wait" : "pointer", opacity: saving ? .7 : 1 }}>{saving ? "Saving…" : editing ? "Save Changes" : `${isStudent ? "🎓 Add Student + Create Accounts" : "👨‍🏫 Add Teacher + Create Account"}`}</button></div>
+    </div></div>}
+  </div>;
 }
