@@ -12,12 +12,15 @@ const DEFAULT_PARENT_PASSWORD = "parent@1234";
 
 const fields: Record<Kind, Array<{ key: string; label: string; placeholder: string }>> = {
   students: [
-    { key: "name", label: "Name", placeholder: "Student name" },
-    { key: "cls", label: "Class", placeholder: "10" },
-    { key: "sec", label: "Section", placeholder: "A" },
-    { key: "parentname", label: "Parent Name", placeholder: "Parent name" },
-    { key: "parentphone", label: "Parent Phone", placeholder: "9876543210" },
+    { key: "name", label: "Full Name", placeholder: "Student full name" },
+    { key: "sid", label: "Roll Number (Login ID)", placeholder: "e.g. LG001" },
+    { key: "cls", label: "Class", placeholder: "Select class" },
+    { key: "sec", label: "Section", placeholder: "Select section" },
+    { key: "enroll", label: "Enrollment Date", placeholder: "" },
     { key: "status", label: "Status", placeholder: "active" },
+    { key: "pass", label: "Student Password", placeholder: "Default: 1234" },
+    { key: "parentName", label: "Parent / Guardian Name", placeholder: "Parent full name" },
+    { key: "parentPhone", label: "Parent Phone (Login)", placeholder: "10-digit mobile" },
   ],
   teachers: [
     { key: "name", label: "Name", placeholder: "Teacher name" },
@@ -30,8 +33,8 @@ const fields: Record<Kind, Array<{ key: string; label: string; placeholder: stri
 const card: React.CSSProperties = {
   background: "#fff",
   border: `1px solid ${C.border}`,
-  borderRadius: 18,
-  boxShadow: "0 4px 20px rgba(15,27,61,.06)",
+  borderRadius: 20,
+  boxShadow: "0 4px 20px rgba(15,27,61,.07)",
 };
 
 async function provision(role: "student" | "parent" | "teacher", loginId: string, password: string, name: string, ref: string) {
@@ -63,8 +66,28 @@ async function nextTeacherTid() {
   return `LGT${String(max + 1).padStart(2, "0")}`;
 }
 
+function Input({ label, value, onChange, placeholder, required, type = "text", disabled = false }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; required?: boolean; type?: string; disabled?: boolean }) {
+  return (
+    <label style={{ display: "block", minWidth: 0 }}>
+      <span style={{ display: "block", fontSize: 12, fontWeight: 750, color: C.sub, marginBottom: 6 }}>{label}{required && <span style={{ color: C.red }}> *</span>}</span>
+      <input type={type} required={required} disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ width: "100%", boxSizing: "border-box", padding: "11px 13px", border: `1.5px solid ${C.border}`, borderRadius: 11, background: disabled ? "#F1F5F9" : "#F8FAFF", color: C.text, outline: "none" }} />
+    </label>
+  );
+}
+
+function Select({ label, value, onChange, options, required }: { label: string; value: string; onChange: (value: string) => void; options: string[]; required?: boolean }) {
+  return (
+    <label style={{ display: "block", minWidth: 0 }}>
+      <span style={{ display: "block", fontSize: 12, fontWeight: 750, color: C.sub, marginBottom: 6 }}>{label}{required && <span style={{ color: C.red }}> *</span>}</span>
+      <select required={required} value={value} onChange={(e) => onChange(e.target.value)} style={{ width: "100%", boxSizing: "border-box", padding: "11px 13px", border: `1.5px solid ${C.border}`, borderRadius: 11, background: "#F8FAFF", color: C.text, outline: "none" }}>
+        <option value="">Select…</option>
+        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+    </label>
+  );
+}
+
 export default function AdminRecordsPage({ kind }: Props) {
-  const config = fields[kind];
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -77,141 +100,151 @@ export default function AdminRecordsPage({ kind }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    try {
-      setRows((await gdb(kind)) as Row[]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load records.");
-    } finally {
-      setLoading(false);
-    }
+    try { setRows((await gdb(kind)) as Row[]); }
+    catch (err) { setError(err instanceof Error ? err.message : "Unable to load records."); }
+    finally { setLoading(false); }
   }, [kind]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter((row) => config.some((field) => String(row[field.key] ?? "").toLowerCase().includes(q)));
-  }, [config, query, rows]);
+    return rows.filter((row) => Object.values(row).some((value) => String(value ?? "").toLowerCase().includes(q)));
+  }, [query, rows]);
 
-  const openNew = () => {
-    setEditing(null);
-    setError("");
-    setSuccess("");
-    setForm(Object.fromEntries(config.map((field) => [field.key, field.key === "status" ? "active" : ""])));
+  const openNew = async () => {
+    setEditing(null); setError(""); setSuccess("");
+    if (kind === "students") {
+      const sid = await nextStudentSid();
+      setForm({ name: "", sid, cls: "", sec: "", enroll: new Date().toISOString().slice(0, 10), status: "active", pass: DEFAULT_STUDENT_PASSWORD, parentName: "", parentPhone: "" });
+    } else {
+      const tid = await nextTeacherTid();
+      setForm({ name: "", tid, subject: "", phone: "", status: "active" });
+    }
   };
 
   const openEdit = (row: Row) => {
-    setEditing(row);
-    setError("");
-    setSuccess("");
-    setForm(Object.fromEntries(config.map((field) => [field.key, String(row[field.key] ?? "")] )));
+    setEditing(row); setError(""); setSuccess("");
+    if (kind === "students") {
+      setForm({ name: String(row.name ?? ""), sid: String(row.sid ?? ""), cls: String(row.cls ?? ""), sec: String(row.sec ?? ""), enroll: String(row.enroll ?? ""), status: String(row.status ?? "active"), pass: String(row.pass ?? DEFAULT_STUDENT_PASSWORD), parentName: String(row.parentName ?? row.parentname ?? ""), parentPhone: String(row.parentPhone ?? row.parentphone ?? "") });
+    } else {
+      setForm({ name: String(row.name ?? ""), tid: String(row.tid ?? ""), subject: String(row.subject ?? ""), phone: String(row.phone ?? ""), status: String(row.status ?? "active") });
+    }
   };
 
+  const closeForm = () => { setForm({}); setEditing(null); setError(""); };
+
   const save = async () => {
-    if (!form.name?.trim()) {
-      setError("Name is required.");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    setSuccess("");
+    if (!form.name?.trim()) { setError("Full Name is required."); return; }
+    setSaving(true); setError(""); setSuccess("");
     try {
       if (editing) {
-        const payload = Object.fromEntries(Object.entries(form).filter(([, value]) => value.trim() !== ""));
-        await updR(kind, editing.id, payload);
-        setSuccess("Record updated successfully.");
+        if (kind === "students") {
+          await updR("students", editing.id, { name: form.name.trim(), sid: form.sid.trim(), cls: form.cls.trim(), sec: form.sec.trim(), parentname: form.parentName.trim(), parentphone: form.parentPhone.trim(), parentName: form.parentName.trim(), parentPhone: form.parentPhone.trim(), enroll: form.enroll, status: form.status, pass: form.pass || DEFAULT_STUDENT_PASSWORD });
+          setSuccess("Student updated successfully!");
+        } else {
+          await updR("teachers", editing.id, { name: form.name.trim(), tid: form.tid.trim(), subject: form.subject.trim(), phone: form.phone.trim(), status: form.status });
+          setSuccess("Teacher updated successfully!");
+        }
       } else if (kind === "students") {
-        if (!form.parentphone?.trim()) throw new Error("Parent phone is required so the parent login can be created.");
-        const sid = await nextStudentSid();
-        const student = await addR("students", {
-          id: `s-${Date.now()}`,
-          name: form.name.trim(),
-          sid,
-          cls: form.cls.trim(),
-          sec: form.sec.trim(),
-          parentname: form.parentname.trim(),
-          parentphone: form.parentphone.trim(),
-          parent: null,
-          enroll: new Date().toISOString().slice(0, 10),
-          status: form.status.trim() || "active",
-        });
+        if (!form.cls || !form.sec || !form.parentName?.trim() || !form.parentPhone?.trim()) throw new Error("Fill all required student and parent fields.");
+        const student = await addR("students", { id: `s-${Date.now()}`, name: form.name.trim(), sid: form.sid, cls: form.cls, sec: form.sec, parentname: form.parentName.trim(), parentphone: form.parentPhone.trim(), parentName: form.parentName.trim(), parentPhone: form.parentPhone.trim(), enroll: form.enroll, status: form.status || "active", pass: form.pass || DEFAULT_STUDENT_PASSWORD });
         try {
-          const studentAuth = await provision("student", sid, DEFAULT_STUDENT_PASSWORD, student.name as string, String(student.id));
-          const parentAuth = await provision("parent", form.parentphone.trim(), DEFAULT_PARENT_PASSWORD, form.parentname.trim() || "Parent", String(student.id));
+          const studentAuth = await provision("student", form.sid, form.pass || DEFAULT_STUDENT_PASSWORD, form.name.trim(), String(student.id));
+          const parentAuth = await provision("parent", form.parentPhone.trim(), DEFAULT_PARENT_PASSWORD, form.parentName.trim(), String(student.id));
           await updR("students", student.id, { parent: parentAuth.authId });
-          await addR("users", { id: `u-${studentAuth.authId}`, name: student.name, phone: sid, email: studentAuth.email, role: "student", ref: student.id, status: "active", pass: DEFAULT_STUDENT_PASSWORD, auth_id: studentAuth.authId });
-          await addR("users", { id: `u-${parentAuth.authId}`, name: form.parentname.trim() || "Parent", phone: form.parentphone.trim(), email: parentAuth.email, role: "parent", ref: student.id, status: "active", pass: DEFAULT_PARENT_PASSWORD, auth_id: parentAuth.authId });
-          setSuccess(`${sid} created. Student password: ${DEFAULT_STUDENT_PASSWORD} · Parent password: ${DEFAULT_PARENT_PASSWORD}`);
+          await addR("users", { id: `u-${studentAuth.authId}`, name: form.name.trim(), phone: form.sid, email: studentAuth.email, role: "student", ref: student.id, status: "active", pass: form.pass || DEFAULT_STUDENT_PASSWORD, auth_id: studentAuth.authId });
+          await addR("users", { id: `u-${parentAuth.authId}`, name: form.parentName.trim(), phone: form.parentPhone.trim(), email: parentAuth.email, role: "parent", ref: student.id, status: "active", pass: DEFAULT_PARENT_PASSWORD, auth_id: parentAuth.authId });
+          setSuccess(`Student "${form.name.trim()}" (SID: ${form.sid}) created! Student login: ${form.sid} · Password: ${form.pass || DEFAULT_STUDENT_PASSWORD} · Parent login: ${form.parentPhone} · Password: ${DEFAULT_PARENT_PASSWORD}`);
         } catch (accountError) {
           await delR("students", student.id);
           throw new Error(`Account creation failed, so the student was rolled back: ${accountError instanceof Error ? accountError.message : "Unknown error"}`);
         }
       } else {
-        const tid = await nextTeacherTid();
-        const teacher = await addR("teachers", {
-          id: `t-${Date.now()}`,
-          name: form.name.trim(),
-          tid,
-          subject: form.subject.trim(),
-          phone: form.phone.trim(),
-          classes: [],
-          status: form.status.trim() || "active",
-        });
+        const teacher = await addR("teachers", { id: `t-${Date.now()}`, name: form.name.trim(), tid: form.tid, subject: form.subject.trim(), phone: form.phone.trim(), classes: [], status: form.status || "active" });
         try {
-          const auth = await provision("teacher", form.phone.trim() || tid, DEFAULT_TEACHER_PASSWORD, teacher.name as string, String(teacher.id));
-          await addR("users", { id: `u-${auth.authId}`, name: teacher.name, phone: form.phone.trim(), email: auth.email, role: "teacher", ref: teacher.id, status: "active", pass: DEFAULT_TEACHER_PASSWORD, auth_id: auth.authId });
-          setSuccess(`${tid} created. Default password: ${DEFAULT_TEACHER_PASSWORD}`);
+          const auth = await provision("teacher", form.phone.trim() || form.tid, DEFAULT_TEACHER_PASSWORD, form.name.trim(), String(teacher.id));
+          await addR("users", { id: `u-${auth.authId}`, name: form.name.trim(), phone: form.phone.trim(), email: auth.email, role: "teacher", ref: teacher.id, status: "active", pass: DEFAULT_TEACHER_PASSWORD, auth_id: auth.authId });
+          setSuccess(`${form.tid} created. Default password: ${DEFAULT_TEACHER_PASSWORD}`);
         } catch (accountError) {
           await delR("teachers", teacher.id);
           throw new Error(`Account creation failed, so the teacher was rolled back: ${accountError instanceof Error ? accountError.message : "Unknown error"}`);
         }
       }
-      setForm({});
-      setEditing(null);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save record.");
-    } finally {
-      setSaving(false);
-    }
+      closeForm(); await load();
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to save record."); }
+    finally { setSaving(false); }
   };
 
   const remove = async (row: Row) => {
     if (!window.confirm(`Delete ${String(row.name || "this record")}?`)) return;
-    setError("");
-    setSuccess("");
-    try {
-      await delR(kind, row.id);
-      setRows((current) => current.filter((item) => item.id !== row.id));
-      setSuccess("Record deleted from Supabase.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to delete record.");
-    }
+    setError(""); setSuccess("");
+    try { await delR(kind, row.id); setRows((current) => current.filter((item) => item.id !== row.id)); setSuccess(kind === "students" ? "Student and linked record deleted." : "Teacher deleted."); }
+    catch (err) { setError(err instanceof Error ? err.message : "Unable to delete record."); }
   };
+
+  const isStudent = kind === "students";
+  const hasForm = Object.keys(form).length > 0;
 
   return (
     <div style={{ padding: 28, background: "#F7F9FF", minHeight: "100%" }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 18 }}>
-        <div><h2 style={{ margin: 0, color: C.text, fontSize: 24 }}>{kind === "students" ? "Students" : "Teachers"}</h2><p style={{ margin: "5px 0 0", color: C.sub, fontSize: 13 }}>{rows.length} records from Supabase</p></div>
-        <button type="button" onClick={openNew} style={{ border: 0, borderRadius: 12, padding: "11px 16px", background: C.accent, color: "#fff", fontWeight: 800, cursor: "pointer" }}>+ Add {kind === "students" ? "Student" : "Teacher"}</button>
-      </div>
+      {success && <div className="fu" style={{ background: "#DCFCE7", borderRadius: 14, padding: "12px 18px", marginBottom: 18, color: "#16A34A", fontWeight: 700, fontSize: 14 }}>✅ {success}</div>}
       {error && <div style={{ ...card, padding: 14, marginBottom: 16, color: C.red, background: "#FFF7F7" }}>{error}</div>}
-      {success && <div style={{ ...card, padding: 14, marginBottom: 16, color: "#15803D", background: "#F0FDF4" }}>{success}</div>}
-      <div style={{ ...card, padding: 16, marginBottom: 16 }}><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${kind}...`} style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${C.border}`, borderRadius: 12, padding: "11px 13px", outline: "none" }} /></div>
-      {(editing || Object.keys(form).length > 0) && <div style={{ ...card, padding: 20, marginBottom: 18 }}>
-        <div style={{ fontWeight: 800, color: C.text, marginBottom: 6 }}>{editing ? "Edit record" : `Add ${kind === "students" ? "Student" : "Teacher"}`}</div>
-        {!editing && <div style={{ fontSize: 11, color: C.sub, marginBottom: 14 }}>{kind === "students" ? `SID and both login accounts are automatic. Student password: ${DEFAULT_STUDENT_PASSWORD}; parent password: ${DEFAULT_PARENT_PASSWORD}.` : `Teacher ID and login account are automatic. Default password: ${DEFAULT_TEACHER_PASSWORD}.`}</div>}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
-          {config.map((field) => <label key={field.key} style={{ fontSize: 12, color: C.sub, fontWeight: 700 }}>{field.label}<input value={form[field.key] ?? ""} onChange={(event) => setForm((current) => ({ ...current, [field.key]: event.target.value }))} placeholder={field.placeholder} style={{ width: "100%", boxSizing: "border-box", marginTop: 6, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 11px" }} /></label>)}
-        </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}><button type="button" onClick={() => { setForm({}); setEditing(null); }} style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 14px", background: "#fff", cursor: "pointer" }}>Cancel</button><button type="button" onClick={() => void save()} disabled={saving} style={{ border: 0, borderRadius: 10, padding: "9px 16px", background: C.accent, color: "#fff", fontWeight: 800, cursor: "pointer" }}>{saving ? "Creating accounts..." : "Save"}</button></div>
-      </div>}
-      <div style={{ ...card, overflowX: "auto" }}>
-        {loading ? <div style={{ padding: 24, color: C.sub }}>Loading records...</div> : filtered.length === 0 ? <div style={{ padding: 24, color: C.sub }}>No records found.</div> : <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 650 }}><thead><tr>{config.map((field) => <th key={field.key} style={{ textAlign: "left", padding: 13, fontSize: 11, color: C.sub, borderBottom: `1px solid ${C.border}` }}>{field.label}</th>)}<th style={{ padding: 13, textAlign: "right", fontSize: 11, color: C.sub, borderBottom: `1px solid ${C.border}` }}>Actions</th></tr></thead><tbody>{filtered.map((row) => <tr key={String(row.id)}>{config.map((field) => <td key={field.key} style={{ padding: 13, fontSize: 13, color: C.text, borderBottom: `1px solid ${C.border}` }}>{String(row[field.key] ?? "—")}</td>)}<td style={{ padding: 13, textAlign: "right", whiteSpace: "nowrap" }}><button type="button" onClick={() => openEdit(row)} style={{ border: 0, background: "#EEF2FF", color: C.accent, borderRadius: 8, padding: "7px 10px", cursor: "pointer", marginRight: 6 }}>Edit</button><button type="button" onClick={() => void remove(row)} style={{ border: 0, background: "#FFF1F2", color: C.red, borderRadius: 8, padding: "7px 10px", cursor: "pointer" }}>Delete</button></td></tr>)}</tbody></table>}
+
+      <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 20 }}>
+        <div style={{ flex: 1, minWidth: 220 }}><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="🔍  Search by name or ID…" style={{ width: "100%", boxSizing: "border-box", padding: "10px 16px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: "#fff", color: C.text, fontSize: 14, outline: "none" }} /></div>
+        <button type="button" onClick={() => void openNew()} style={{ border: 0, borderRadius: 12, padding: "11px 16px", background: C.accent, color: "#fff", fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>🎓 + Add {isStudent ? "Student" : "Teacher"}</button>
       </div>
+
+      <div style={{ ...card, overflow: "hidden" }}>
+        {loading ? <div style={{ padding: 28, color: C.sub }}>Loading records...</div> : filtered.length === 0 ? <div style={{ padding: 40, color: C.sub, textAlign: "center" }}>No records found.</div> : (
+          <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", minWidth: isStudent ? 900 : 650 }}><thead><tr>
+            {(isStudent ? ["Roll No", "Student Name", "Class", "Parent Name", "Parent Phone", "Status", "Login ID"] : ["Teacher ID", "Name", "Subject", "Phone / Login", "Status"]).map((head) => <th key={head} style={{ background: "#F8FAFF", padding: "12px 14px", textAlign: "left", color: C.sub, fontSize: 12, whiteSpace: "nowrap" }}>{head}</th>)}
+            <th style={{ background: "#F8FAFF", padding: "12px 14px", textAlign: "left", color: C.sub, fontSize: 12 }}>Actions</th>
+          </tr></thead><tbody>{filtered.map((row) => <tr key={String(row.id)} className="row-hover">
+            {isStudent ? <>
+              <td style={{ padding: "12px 14px", fontSize: 13, whiteSpace: "nowrap" }}>{String(row.sid ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, fontWeight: 650, whiteSpace: "nowrap" }}>{String(row.name ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, whiteSpace: "nowrap" }}>{String(row.cls ?? "—")}-{String(row.sec ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, whiteSpace: "nowrap" }}>{String(row.parentName ?? row.parentname ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, whiteSpace: "nowrap" }}>{String(row.parentPhone ?? row.parentphone ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 12, whiteSpace: "nowrap" }}><span style={{ background: String(row.status).toLowerCase() === "inactive" ? "#F1F5F9" : "#DCFCE7", color: String(row.status).toLowerCase() === "inactive" ? "#64748B" : "#16A34A", padding: "3px 10px", borderRadius: 20, fontWeight: 800 }}>{String(row.status ?? "active").toUpperCase()}</span></td><td style={{ padding: "12px 14px", fontSize: 12, color: C.sub, fontFamily: "monospace", whiteSpace: "nowrap" }}>{String(row.sid ?? "—")}</td>
+            </> : <><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.tid ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13, fontWeight: 650 }}>{String(row.name ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.subject ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 13 }}>{String(row.phone ?? "—")}</td><td style={{ padding: "12px 14px", fontSize: 12 }}>{String(row.status ?? "active").toUpperCase()}</td></>}
+            <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}><button type="button" onClick={() => openEdit(row)} style={{ border: `1px solid ${C.accent}`, background: "transparent", color: C.accent, borderRadius: 8, padding: "7px 10px", cursor: "pointer", marginRight: 6 }}>Edit</button><button type="button" onClick={() => void remove(row)} style={{ border: 0, background: "#FFF1F2", color: C.red, borderRadius: 8, padding: "7px 10px", cursor: "pointer" }}>🗑</button></td>
+          </tr>)}</tbody></table></div>
+        )}
+      </div>
+
+      {hasForm && <div className="modal-backdrop" onClick={closeForm} style={{ position: "fixed", inset: 0, background: "rgba(15,27,61,.6)", zIndex: 100, display: "grid", placeItems: "center", padding: 16 }}>
+        <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 22, width: "min(900px,100%)", maxHeight: "92vh", overflowY: "auto", padding: 26, boxShadow: "0 24px 72px rgba(15,27,61,.25)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}><h2 style={{ margin: 0, fontSize: 19, color: C.text }}>{editing ? `Edit ${isStudent ? "Student" : "Teacher"}` : `Add New ${isStudent ? "Student" : "Teacher"}`}</h2><button type="button" onClick={closeForm} style={{ border: 0, background: "#F8FAFF", color: C.sub, borderRadius: 9, padding: 8, cursor: "pointer" }}>✕</button></div>
+          {isStudent ? <>
+            <div style={{ background: "#F0F9FF", borderRadius: 14, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#0284C7", fontWeight: 600, whiteSpace: "pre-line" }}>{editing ? "ℹ️ Edit student details below." : "ℹ️ When you add a student, the system automatically creates:\n• Student login (Roll No + password)\n• Parent login (Parent phone + password)"}</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 12, padding: "6px 0", borderBottom: `2px solid ${C.border}` }}>👨‍🎓 Student Information</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
+              <Input label="Full Name" value={form.name ?? ""} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Student full name" required />
+              <Input label="Roll Number (Login ID)" value={form.sid ?? ""} onChange={(v) => setForm((f) => ({ ...f, sid: v }))} placeholder="e.g. LG001" required disabled={!editing} />
+              <Select label="Class" value={form.cls ?? ""} onChange={(v) => setForm((f) => ({ ...f, cls: v }))} options={["9", "10", "11", "12"]} required />
+              <Select label="Section" value={form.sec ?? ""} onChange={(v) => setForm((f) => ({ ...f, sec: v }))} options={["A", "B", "C", "D"]} required />
+              <Input label="Enrollment Date" type="date" value={form.enroll ?? ""} onChange={(v) => setForm((f) => ({ ...f, enroll: v }))} />
+              <Select label="Status" value={form.status ?? "active"} onChange={(v) => setForm((f) => ({ ...f, status: v }))} options={["active", "inactive"]} />
+              <Input label="Student Password" value={form.pass ?? DEFAULT_STUDENT_PASSWORD} onChange={(v) => setForm((f) => ({ ...f, pass: v }))} placeholder="Default: 1234" required />
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, margin: "18px 0 12px", padding: "6px 0", borderBottom: `2px solid ${C.border}` }}>👨‍👩‍👧 Parent Information</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
+              <Input label="Parent / Guardian Name" value={form.parentName ?? ""} onChange={(v) => setForm((f) => ({ ...f, parentName: v }))} placeholder="Parent full name" required />
+              <Input label="Parent Phone (Login)" value={form.parentPhone ?? ""} onChange={(v) => setForm((f) => ({ ...f, parentPhone: v }))} placeholder="10-digit mobile" required />
+            </div>
+            <div style={{ background: "#FFF7ED", borderRadius: 12, padding: "10px 14px", margin: "16px 0 20px", fontSize: 12, color: "#92400E", fontWeight: 600 }}>🔒 Parent default password: <strong>{DEFAULT_PARENT_PASSWORD}</strong> — they can change it after first login.</div>
+          </> : <>
+            <div style={{ background: "#F0F9FF", borderRadius: 14, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#0284C7", fontWeight: 600 }}>{editing ? "ℹ️ Edit teacher details below." : "ℹ️ Teacher login account is created automatically."}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
+              <Input label="Full Name" value={form.name ?? ""} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Teacher full name" required />
+              <Input label="Teacher ID" value={form.tid ?? ""} onChange={(v) => setForm((f) => ({ ...f, tid: v }))} placeholder="e.g. LGT01" disabled />
+              <Input label="Subject" value={form.subject ?? ""} onChange={(v) => setForm((f) => ({ ...f, subject: v }))} placeholder="Mathematics" required />
+              <Input label="Phone / Login" value={form.phone ?? ""} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} placeholder="9876543210" required />
+              <Select label="Status" value={form.status ?? "active"} onChange={(v) => setForm((f) => ({ ...f, status: v }))} options={["active", "inactive"]} />
+            </div>
+          </>}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4, flexWrap: "wrap" }}><button type="button" onClick={closeForm} style={{ border: `1.5px solid ${C.sub}`, background: "transparent", color: C.sub, borderRadius: 11, padding: "10px 16px", fontWeight: 700, cursor: "pointer" }}>Cancel</button><button type="button" onClick={() => void save()} disabled={saving} style={{ border: 0, background: C.accent, color: "#fff", borderRadius: 11, padding: "10px 16px", fontWeight: 800, cursor: saving ? "wait" : "pointer", opacity: saving ? .7 : 1 }}>{saving ? "Creating accounts…" : editing ? "Save Changes" : `${isStudent ? "🎓 Add Student + Create Accounts" : "👨‍🏫 Add Teacher + Create Account"}`}</button></div>
+        </div>
+      </div>}
     </div>
   );
 }
