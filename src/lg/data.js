@@ -28,10 +28,12 @@ export const gdb = async (t) => {
   return rows;
 };
 
-// Only send columns that are actually part of the public schema. Credentials are
+// Only send columns that are part of the canonical public schema. Credentials are
 // deliberately excluded: passwords belong only in Supabase Auth, never in tables/localStorage.
+// Student parent fields intentionally use ONE naming convention: lowercase
+// parentname/parentphone. The old camelCase duplicates were removed by migration.
 const WRITE_COLUMNS = {
-  students: new Set(["id","name","sid","cls","sec","parentname","parentphone","parent","enroll","status","parentName","parentPhone"]),
+  students: new Set(["id","name","sid","cls","sec","parentname","parentphone","parent","enroll","status"]),
   teachers: new Set(["id","name","tid","subject","phone","classes","status"]),
   users: new Set(["id","name","phone","email","role","ref","status","auth_id","created_at"]),
 };
