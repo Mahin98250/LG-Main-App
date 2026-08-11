@@ -89,6 +89,35 @@ export const gdb = async (t) => {
   return rows;
 };
 
+/*
+ * The reference Admin panel keeps some UI-only fields in its form object
+ * (for example `pass`). They must never be sent to PostgREST when the
+ * corresponding database column does not exist. Keep this boundary here so
+ * every caller is protected, including create and edit flows.
+ */
+const WRITE_COLUMNS = {
+  students: new Set([
+    "id",
+    "name",
+    "sid",
+    "cls",
+    "sec",
+    "parentname",
+    "parentphone",
+    "parent",
+    "enroll",
+    "status",
+    "parentName",
+    "parentPhone",
+  ]),
+};
+
+const sanitizeWrite = (table, payload) => {
+  const allowed = WRITE_COLUMNS[table];
+  if (!allowed) return payload;
+  return Object.fromEntries(Object.entries(payload).filter(([key]) => allowed.has(key)));
+};
+
 const upsertLocal = (t, v) => {
   const c = lsG(t);
   const i = c.findIndex((x) => x && x.id === v.id);
@@ -98,7 +127,8 @@ const upsertLocal = (t, v) => {
 };
 
 export const addR = async (t, row) => {
-  const { data, error } = await supabase.from(t).insert(row).select().maybeSingle();
+  const payload = sanitizeWrite(t, row);
+  const { data, error } = await supabase.from(t).insert(payload).select().maybeSingle();
   if (error) {
     console.error("Supabase insert failed [" + t + "]:", error.message);
     throw error;
@@ -109,7 +139,9 @@ export const addR = async (t, row) => {
 };
 
 export const updR = async (t, id, p) => {
-  const { data, error } = await supabase.from(t).update(p).eq("id", id).select().maybeSingle();
+  const payload = sanitizeWrite(t, p);
+  delete payload.id;
+  const { data, error } = await supabase.from(t).update(payload).eq("id", id).select().maybeSingle();
   if (error) {
     console.error("Supabase update failed [" + t + "]:", error.message);
     throw error;
