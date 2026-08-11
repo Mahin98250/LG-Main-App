@@ -1,30 +1,64 @@
-import { useCallback, useState } from "react";
-import { supabase } from "@/lg/supabase";
-import AdminLogin from "./auth/AdminLogin";
-import AdminDashboard from "./dashboard/AdminDashboard";
-import AdminRecordsPage from "./records/AdminRecordsPage";
-import TeacherRecordsPage from "./records/TeacherRecordsPage";
-import BatchesTimetablePage from "./batches/BatchesTimetablePage";
-import ExamSchedulePage from "./examschedule/ExamSchedulePage";
-import StudentResultsPage from "./results/StudentResultsPage";
-import { MaterialsDrive } from "./MaterialsDrive";
-import AdminLayout, { ADMIN_PAGE_SUBTITLES, ADMIN_PAGE_TITLES, type AdminPageKey } from "./AdminLayout";
+import { useCallback, useEffect, useState } from "react";
+import { getCurrentUser, signOut } from "@/lg/auth";
+import { AdminWithDrive } from "./AdminWithDrive";
+import { AdminLogin } from "./ReferenceAdminPanel";
 
-type AdminPortalProps = { initialPage?: AdminPageKey };
+type AdminUser = {
+  id: string;
+  name: string;
+  phone: string;
+  role: string;
+  ref: string | null;
+};
 
-export default function AdminPortal({ initialPage = "dashboard" }: AdminPortalProps) {
-  const [authenticated, setAuthenticated] = useState(false);
-  const [activePage, setActivePage] = useState<AdminPageKey>(initialPage);
-  const handleAuthenticated = useCallback(() => setAuthenticated(true), []);
-  const handleLogout = useCallback(async () => { await supabase.auth.signOut(); setAuthenticated(false); setActivePage("dashboard"); }, []);
-  if (!authenticated) return <AdminLogin onAuthenticated={handleAuthenticated} />;
-  let pageContent;
-  if (activePage === "students") pageContent = <AdminRecordsPage kind="students" />;
-  else if (activePage === "teachers") pageContent = <TeacherRecordsPage />;
-  else if (activePage === "batches") pageContent = <BatchesTimetablePage />;
-  else if (activePage === "examschedule") pageContent = <ExamSchedulePage />;
-  else if (activePage === "results") pageContent = <StudentResultsPage />;
-  else if (activePage === "materials") pageContent = <MaterialsDrive />;
-  else pageContent = <AdminDashboard />;
-  return <AdminLayout activePage={activePage} onNavigate={setActivePage} onLogout={handleLogout} title={ADMIN_PAGE_TITLES[activePage]} subtitle={ADMIN_PAGE_SUBTITLES[activePage]}>{pageContent}</AdminLayout>;
+/**
+ * Single source of truth for the admin experience.
+ *
+ * The old AdminPortal had a second, incomplete navigation implementation which
+ * could show placeholder dashboard content for several real admin sections.
+ * Keep this compatibility entry point, but delegate to the same full admin
+ * panel used by /admin so every entry point has identical functionality.
+ */
+export default function AdminPortal() {
+  const [user, setUser] = useState<AdminUser | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    getCurrentUser().then((current) => {
+      if (!mounted) return;
+      if (current?.role === "admin") setUser(current);
+      setChecking(false);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    await signOut();
+    setUser(null);
+  }, []);
+
+  if (checking) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          fontFamily: "Poppins, system-ui, sans-serif",
+          color: "#0F1B3D",
+        }}
+      >
+        Loading admin portal…
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AdminLogin onSuccess={(admin) => setUser(admin)} />;
+  }
+
+  return <AdminWithDrive user={user} onLogout={handleLogout} />;
 }
