@@ -33,10 +33,20 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Verify Pages output
+      - name: Prepare GitHub Pages SPA routes
         run: |
+          set -e
           test -f dist/index.html
+          for route in admin auth app; do
+            mkdir -p "dist/$route"
+            cp dist/index.html "dist/$route/index.html"
+          done
           cp dist/index.html dist/404.html
+          test -f dist/admin/index.html
+          test -f dist/auth/index.html
+          test -f dist/app/index.html
+          test -f dist/pwa-icon.svg
+          test -f dist/manifest.webmanifest
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
