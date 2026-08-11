@@ -3,52 +3,20 @@ import { supabase } from "@/lg/supabase";
 import AdminLogin from "./auth/AdminLogin";
 import AdminDashboard from "./dashboard/AdminDashboard";
 import AdminRecordsPage from "./records/AdminRecordsPage";
-import AdminLayout, {
-  ADMIN_PAGE_SUBTITLES,
-  ADMIN_PAGE_TITLES,
-  type AdminPageKey,
-} from "./AdminLayout";
+import TeacherRecordsPage from "./records/TeacherRecordsPage";
+import AdminLayout, { ADMIN_PAGE_SUBTITLES, ADMIN_PAGE_TITLES, type AdminPageKey } from "./AdminLayout";
 
-type AdminPortalProps = {
-  initialPage?: AdminPageKey;
-};
+type AdminPortalProps = { initialPage?: AdminPageKey };
 
 export default function AdminPortal({ initialPage = "dashboard" }: AdminPortalProps) {
   const [authenticated, setAuthenticated] = useState(false);
   const [activePage, setActivePage] = useState<AdminPageKey>(initialPage);
-
-  const handleAuthenticated = useCallback(() => {
-    setAuthenticated(true);
-  }, []);
-
-  const handleLogout = useCallback(async () => {
-    await supabase.auth.signOut();
-    setAuthenticated(false);
-    setActivePage("dashboard");
-  }, []);
-
-  if (!authenticated) {
-    return <AdminLogin onAuthenticated={handleAuthenticated} />;
-  }
-
+  const handleAuthenticated = useCallback(() => setAuthenticated(true), []);
+  const handleLogout = useCallback(async () => { await supabase.auth.signOut(); setAuthenticated(false); setActivePage("dashboard"); }, []);
+  if (!authenticated) return <AdminLogin onAuthenticated={handleAuthenticated} />;
   let pageContent;
-  if (activePage === "students") {
-    pageContent = <AdminRecordsPage kind="students" />;
-  } else if (activePage === "teachers") {
-    pageContent = <AdminRecordsPage kind="teachers" />;
-  } else {
-    pageContent = <AdminDashboard />;
-  }
-
-  return (
-    <AdminLayout
-      activePage={activePage}
-      onNavigate={setActivePage}
-      onLogout={handleLogout}
-      title={ADMIN_PAGE_TITLES[activePage]}
-      subtitle={ADMIN_PAGE_SUBTITLES[activePage]}
-    >
-      {pageContent}
-    </AdminLayout>
-  );
+  if (activePage === "students") pageContent = <AdminRecordsPage kind="students" />;
+  else if (activePage === "teachers") pageContent = <TeacherRecordsPage />;
+  else pageContent = <AdminDashboard />;
+  return <AdminLayout activePage={activePage} onNavigate={setActivePage} onLogout={handleLogout} title={ADMIN_PAGE_TITLES[activePage]} subtitle={ADMIN_PAGE_SUBTITLES[activePage]}>{pageContent}</AdminLayout>;
 }
