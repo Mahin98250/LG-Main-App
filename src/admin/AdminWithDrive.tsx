@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { ReferenceAdminPanel, type AdminUser } from "@/admin/ReferenceAdminPanel";
+import { ReferenceAdminPanel } from "@/admin/ReferenceAdminPanel";
 import { MaterialsDrive } from "@/admin/MaterialsDrive";
+
+type AdminUser = { id: string; name: string; phone: string; role: string; ref: string | null };
 
 export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: () => void }) {
   const [drive, setDrive] = useState(false);
