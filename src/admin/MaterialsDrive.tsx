@@ -59,22 +59,37 @@ export function MaterialsDrive() {
 
   async function renameFolder() {
     if (!rename || !renameValue.trim()) return;
-    setBusy(true); const { error: e } = await supabase.from("material_folders").update({ name: renameValue.trim() }).eq("id", rename.id);
-    if (e) setError(e.message); else { setRename(null); await load(); } setBusy(false);
+    setBusy(true); setError("");
+    const { error: e } = await supabase.from("material_folders").update({ name: renameValue.trim() }).eq("id", rename.id);
+    if (e) setError(e.message); else { setRename(null); await load(); }
+    setBusy(false);
   }
 
   async function deleteFolder(folder: Folder) {
     if (!window.confirm(`Delete “${folder.name}” and everything inside it?`)) return;
     setBusy(true); setError("");
-    const { data: descendants } = await supabase.from("material_folders").select("id");
+    const { data: allFolders, error: folderReadError } = await supabase.from("material_folders").select("id,parent_id");
+    if (folderReadError) { setError(folderReadError.message); setBusy(false); return; }
     const ids = new Set<string>([folder.id]);
     let changed = true;
-    while (changed) { changed = false; for (const f of descendants || []) if (f.parent_id && ids.has(f.parent_id) && !ids.has(f.id)) { ids.add(f.id); changed = true; } }
+    while (changed) {
+      changed = false;
+      for (const f of allFolders || []) {
+        if (f.parent_id && ids.has(f.parent_id) && !ids.has(f.id)) { ids.add(f.id); changed = true; }
+      }
+    }
     const targets = files.filter(f => f.folder_id && ids.has(f.folder_id));
     const paths = targets.map(f => f.storage_path).filter(Boolean) as string[];
-    if (paths.length) await supabase.storage.from("materials").remove(paths);
-    const { error: e } = await supabase.from("material_folders").delete().eq("id", folder.id);
-    if (e) setError(e.message); else { if (current && ids.has(current.id)) setCurrent(null); await load(); } setBusy(false);
+    if (paths.length) {
+      const { error: storageError } = await supabase.storage.from("materials").remove(paths);
+      if (storageError) { setError(storageError.message); setBusy(false); return; }
+    }
+    const { error: materialError } = await supabase.from("materials").delete().in("folder_id", [...ids]);
+    if (materialError) { setError(materialError.message); setBusy(false); return; }
+    const { error: folderError } = await supabase.from("material_folders").delete().in("id", [...ids]);
+    if (folderError) setError(folderError.message);
+    else { if (current && ids.has(current.id)) setCurrent(null); await load(); }
+    setBusy(false);
   }
 
   async function upload(file: File) {
@@ -99,19 +114,25 @@ export function MaterialsDrive() {
 
   async function deleteFile(file: Material) {
     if (!window.confirm(`Delete “${file.name || file.title}”?`)) return;
-    setBusy(true); if (file.storage_path) await supabase.storage.from("materials").remove([file.storage_path]);
-    const { error: e } = await supabase.from("materials").delete().eq("id", file.id); if (e) setError(e.message); else await load(); setBusy(false);
+    setBusy(true); setError("");
+    if (file.storage_path) {
+      const { error: storageError } = await supabase.storage.from("materials").remove([file.storage_path]);
+      if (storageError) { setError(storageError.message); setBusy(false); return; }
+    }
+    const { error: e } = await supabase.from("materials").delete().eq("id", file.id);
+    if (e) setError(e.message); else await load();
+    setBusy(false);
   }
 
-  return <div style={{ minHeight: "100%", padding: 28, fontFamily: "Poppins,system-ui,sans-serif", color: "#0F1B3D" }}>
+  return <div className="drive-wrap" style={{ minHeight: "100%", padding: 28, fontFamily: "Poppins,system-ui,sans-serif", color: "#0F1B3D" }}>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
       <div><h2 style={{ margin: 0 }}>📚 Study Materials</h2><p style={{ margin: "5px 0 0", color: "#64748B", fontSize: 13 }}>Organize notes, PDFs and presentations like Google Drive. Maximum file size: 50 MB.</p></div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button onClick={() => setNewFolder(true)} style={btn}>📁 New Folder</button><label style={{ ...btn, cursor: busy ? "wait" : "pointer", opacity: busy ? .6 : 1 }}>⬆ Upload<input hidden disabled={busy} type="file" accept={ACCEPT} onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.currentTarget.value = ""; }} /></label><button onClick={() => void load()} style={btn}>↻</button></div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button disabled={busy} onClick={() => setNewFolder(true)} style={btn}>📁 New Folder</button><label style={{ ...btn, cursor: busy ? "wait" : "pointer", opacity: busy ? .6 : 1 }}>⬆ Upload<input hidden disabled={busy} type="file" accept={ACCEPT} onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.currentTarget.value = ""; }} /></label><button disabled={busy} onClick={() => void load()} style={btn}>↻</button></div>
     </div>
     <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap", marginBottom: 14, fontSize: 13 }}><button onClick={() => setCurrent(null)} style={crumb}>My Drive</button>{breadcrumbs.map(f => <span key={f.id}> / <button onClick={() => setCurrent(f)} style={crumb}>{f.name}</button></span>)}</div>
     {error && <div style={{ background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA", padding: 12, borderRadius: 12, marginBottom: 14 }}>{error}</div>}
-    <div style={grid}>
-      {loading ? <div style={empty}>Loading…</div> : <>{visibleFolders.map(f => <div key={f.id} style={item} onDoubleClick={() => setCurrent(f)}><button onClick={() => setCurrent(f)} style={icon}>📁</button><div style={{ minWidth: 0, flex: 1 }}><b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</b><span style={meta}>Folder</span></div><button title="Rename" onClick={() => { setRename(f); setRenameValue(f.name); }} style={more}>✎</button><button title="Delete" onClick={() => void deleteFolder(f)} style={more}>⋮</button></div>)}{visibleFiles.map(f => <div key={f.id} style={item}><div style={{ ...icon, fontSize: 26 }}>{f.mime_type?.includes("powerpoint") ? "📊" : f.mime_type?.includes("pdf") ? "📄" : "📎"}</div><div style={{ minWidth: 0, flex: 1 }}><b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name || f.title || "Untitled"}</b><span style={meta}>{bytes(f.file_size)}</span></div><button title="Download" onClick={() => void download(f)} style={more}>⬇</button><button title="Delete" onClick={() => void deleteFile(f)} style={more}>🗑</button></div>)}{!visibleFolders.length && !visibleFiles.length && !loading && <div style={{ ...empty, gridColumn: "1/-1" }}>This folder is empty. Create a folder or upload a file.</div>}</>}
+    <div className="drive-grid" style={grid}>
+      {loading ? <div style={empty}>Loading…</div> : <>{visibleFolders.map(f => <div key={f.id} style={item} onDoubleClick={() => setCurrent(f)}><button onClick={() => setCurrent(f)} style={icon}>📁</button><div style={{ minWidth: 0, flex: 1 }}><b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</b><span style={meta}>Folder</span></div><button title="Rename" onClick={() => { setRename(f); setRenameValue(f.name); }} style={more}>✎</button><button title="Delete" onClick={() => void deleteFolder(f)} style={more}>🗑</button></div>)}{visibleFiles.map(f => <div key={f.id} style={item}><div style={{ ...icon, fontSize: 26 }}>{f.mime_type?.includes("powerpoint") ? "📊" : f.mime_type?.includes("pdf") ? "📄" : "📎"}</div><div style={{ minWidth: 0, flex: 1 }}><b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name || f.title || "Untitled"}</b><span style={meta}>{bytes(f.file_size)}</span></div><button title="Download" onClick={() => void download(f)} style={more}>⬇</button><button title="Delete" onClick={() => void deleteFile(f)} style={more}>🗑</button></div>)}{!visibleFolders.length && !visibleFiles.length && !loading && <div style={{ ...empty, gridColumn: "1/-1" }}>This folder is empty. Create a folder or upload a file.</div>}</>}
     </div>
     {newFolder && <div style={overlay}><div style={dialog}><h3 style={{ marginTop: 0 }}>New Folder</h3><input autoFocus value={folderName} onChange={e => setFolderName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void createFolder(); }} placeholder="Folder name" style={input} /><div style={dialogActions}><button onClick={() => setNewFolder(false)} style={cancel}>Cancel</button><button disabled={busy} onClick={() => void createFolder()} style={btn}>Create</button></div></div></div>}
     {rename && <div style={overlay}><div style={dialog}><h3 style={{ marginTop: 0 }}>Rename Folder</h3><input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void renameFolder(); }} style={input} /><div style={dialogActions}><button onClick={() => setRename(null)} style={cancel}>Cancel</button><button disabled={busy} onClick={() => void renameFolder()} style={btn}>Save</button></div></div></div>}
