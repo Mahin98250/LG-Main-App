@@ -77,12 +77,27 @@ export default function AdminRecordsPage({ kind }: Props) {
     try {
       if (editing) {
         if (kind === "students") {
+          if (!form.cls || !form.sec || !form.parentName?.trim() || !form.parentPhone?.trim()) throw new Error("Fill all required student and parent fields.");
           await updR("students", editing.id, { name: form.name.trim(), sid: form.sid.trim(), cls: form.cls.trim(), sec: form.sec.trim(), parentname: form.parentName.trim(), parentphone: form.parentPhone.trim(), parentName: form.parentName.trim(), parentPhone: form.parentPhone.trim(), enroll: form.enroll, status: form.status, pass: form.pass || DEFAULT_STUDENT_PASSWORD });
-          setSuccess("Student updated successfully!");
+          const users = (await gdb("users")) as Row[];
+          const studentUser = users.find((u) => String(u.ref ?? "") === String(editing.id) && String(u.role ?? "") === "student");
+          const parentUser = users.find((u) => String(u.ref ?? "") === String(editing.id) && String(u.role ?? "") === "parent");
+          const studentAuth = await provision("student", form.sid.trim(), form.pass || DEFAULT_STUDENT_PASSWORD, form.name.trim(), String(editing.id), "update", studentUser?.auth_id ? String(studentUser.auth_id) : null);
+          const parentAuth = await provision("parent", form.parentPhone.trim(), DEFAULT_PARENT_PASSWORD, form.parentName.trim(), String(editing.id), "update", parentUser?.auth_id ? String(parentUser.auth_id) : null);
+          if (studentAuth.authId) {
+            if (studentUser) await updR("users", studentUser.id, { name: form.name.trim(), phone: form.sid.trim(), email: studentAuth.email, status: form.status, pass: form.pass || DEFAULT_STUDENT_PASSWORD, auth_id: studentAuth.authId });
+            else await addR("users", { id: `u-${studentAuth.authId}`, name: form.name.trim(), phone: form.sid.trim(), email: studentAuth.email, role: "student", ref: editing.id, status: form.status, pass: form.pass || DEFAULT_STUDENT_PASSWORD, auth_id: studentAuth.authId });
+          }
+          if (parentAuth.authId) {
+            if (parentUser) await updR("users", parentUser.id, { name: form.parentName.trim(), phone: form.parentPhone.trim(), email: parentAuth.email, status: form.status, pass: DEFAULT_PARENT_PASSWORD, auth_id: parentAuth.authId });
+            else await addR("users", { id: `u-${parentAuth.authId}`, name: form.parentName.trim(), phone: form.parentPhone.trim(), email: parentAuth.email, role: "parent", ref: editing.id, status: form.status, pass: DEFAULT_PARENT_PASSWORD, auth_id: parentAuth.authId });
+          }
+          await updR("students", editing.id, { parent: parentAuth.authId || editing.parent || null });
+          setSuccess("Student and linked accounts updated successfully!");
         } else {
           const subject = teacherSubjects.join(", ");
           const classes = teacherClasses;
-          await updR("teachers", editing.id, { name: form.name.trim(), tid: form.tid.trim(), subject, subjects: classes.length >= 0 ? teacherSubjects : teacherSubjects, phone: form.phone.trim(), status: form.status, pass: form.pass || DEFAULT_TEACHER_PASSWORD, classes, updated_at: new Date().toISOString() });
+          await updR("teachers", editing.id, { name: form.name.trim(), tid: form.tid.trim(), subject, subjects: teacherSubjects, phone: form.phone.trim(), status: form.status, pass: form.pass || DEFAULT_TEACHER_PASSWORD, classes, updated_at: new Date().toISOString() });
           const users = (await gdb("users")) as Row[];
           const user = users.find((u) => String(u.ref ?? "") === String(editing.id) && String(u.role ?? "") === "teacher");
           const auth = await provision("teacher", form.phone.trim(), form.pass || DEFAULT_TEACHER_PASSWORD, form.name.trim(), String(editing.id), "update", user?.auth_id ? String(user.auth_id) : null);
@@ -101,7 +116,18 @@ export default function AdminRecordsPage({ kind }: Props) {
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to save record."); } finally { setSaving(false); }
   };
 
-  const remove = async (row: Row) => { if (!window.confirm(kind === "teachers" ? "Delete this teacher and their account?" : `Delete ${String(row.name || "this record")}?`)) return; setError(""); setSuccess(""); try { if (kind === "teachers") { const users = (await gdb("users")) as Row[]; for (const user of users.filter((u) => String(u.ref ?? "") === String(row.id) && String(u.role ?? "") === "teacher")) { try { await provision("teacher", String(user.phone ?? row.phone ?? row.tid), String(user.pass ?? DEFAULT_TEACHER_PASSWORD), String(row.name ?? "Teacher"), String(row.id), "delete", user.auth_id ? String(user.auth_id) : null); } catch { /* already deleted Auth users are harmless */ } await delR("users", user.id); } } await delR(kind, row.id); setRows((current) => current.filter((item) => item.id !== row.id)); setSuccess(kind === "teachers" ? "Teacher and account deleted." : "Student and linked record deleted."); } catch (err) { setError(err instanceof Error ? err.message : "Unable to delete record."); } };
+  const remove = async (row: Row) => { if (!window.confirm(kind === "teachers" ? "Delete this teacher and their account?" : "Delete this student and all linked accounts?") ) return; setError(""); setSuccess(""); try {
+    const users = (await gdb("users")) as Row[];
+    const linkedRoles = kind === "teachers" ? ["teacher"] : ["student", "parent"];
+    const linkedUsers = users.filter((u) => String(u.ref ?? "") === String(row.id) && linkedRoles.includes(String(u.role ?? "")));
+    for (const user of linkedUsers) {
+      try { await provision(String(user.role) as "student" | "parent" | "teacher", String(user.phone ?? (kind === "students" ? row.sid : row.tid)), String(user.pass ?? (String(user.role) === "parent" ? DEFAULT_PARENT_PASSWORD : DEFAULT_STUDENT_PASSWORD)), String(row.name ?? "User"), String(row.id), "delete", user.auth_id ? String(user.auth_id) : null); } catch { /* already deleted Auth users are harmless */ }
+      await delR("users", user.id);
+    }
+    await delR(kind, row.id);
+    setRows((current) => current.filter((item) => item.id !== row.id));
+    setSuccess(kind === "teachers" ? "Teacher and account deleted." : "Student and linked student/parent accounts deleted.");
+  } catch (err) { setError(err instanceof Error ? err.message : "Unable to delete record."); } };
 
   const isStudent = kind === "students";
   const hasForm = Object.keys(form).length > 0;
