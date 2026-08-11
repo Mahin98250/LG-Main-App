@@ -5,6 +5,7 @@ import AdminDashboard from "./dashboard/AdminDashboard";
 import AdminRecordsPage from "./records/AdminRecordsPage";
 import TeacherRecordsPage from "./records/TeacherRecordsPage";
 import BatchesTimetablePage from "./batches/BatchesTimetablePage";
+import ExamSchedulePage from "./examschedule/ExamSchedulePage";
 import AdminLayout, { ADMIN_PAGE_SUBTITLES, ADMIN_PAGE_TITLES, type AdminPageKey } from "./AdminLayout";
 
 type AdminPortalProps = { initialPage?: AdminPageKey };
@@ -19,6 +20,7 @@ export default function AdminPortal({ initialPage = "dashboard" }: AdminPortalPr
   if (activePage === "students") pageContent = <AdminRecordsPage kind="students" />;
   else if (activePage === "teachers") pageContent = <TeacherRecordsPage />;
   else if (activePage === "batches") pageContent = <BatchesTimetablePage />;
+  else if (activePage === "examschedule") pageContent = <ExamSchedulePage />;
   else pageContent = <AdminDashboard />;
   return <AdminLayout activePage={activePage} onNavigate={setActivePage} onLogout={handleLogout} title={ADMIN_PAGE_TITLES[activePage]} subtitle={ADMIN_PAGE_SUBTITLES[activePage]}>{pageContent}</AdminLayout>;
 }
