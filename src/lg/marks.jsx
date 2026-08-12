@@ -1,6 +1,6 @@
 import React,{useState,useEffect,useRef,useCallback,useMemo,useLayoutEffect}from"react";
 import {C,ROLES,DAYS,today,lsG,gdb,addR,updR,delR,uid} from "@/lg/data";
-import {LGLogo,LGIcon,GLOBAL_CSS,Bubbles,Inp,WBtn,GBtn,SBtn,Card,Badge,Sec,EyeBtn,BackBtn,BottomNav,AppBar,Shell,useRipple} from "@/lg/ui";
+import {LGLogo,LGIcon,GLOBAL_CSS,Bubbles,Inp,WBtn,GBtn,SBtn,Card,Badge,Sec,EyeBtn,BackBtn,BottomNav,AppBar,Shell,useRipple}from"@/lg/ui";
 import {PDFViewer,BarChart}from "@/lg/panels";
 
 const scopedStudents=(teacher)=>{
@@ -15,9 +15,6 @@ const scopedStudents=(teacher)=>{
 const scopedSubjects=(teacher)=>String(teacher?.subject||"").split(",").map(x=>x.trim()).filter(Boolean);
 const todayISO=()=>new Date().toISOString().split("T")[0];
 
-/* ═══════════════════════════════════════════════════════
-   MARKS – TEACHER ENTER MARKS
-═══════════════════════════════════════════════════════ */
 export function THMarks({teacher}){
   const students=scopedStudents(teacher);const subjects=scopedSubjects(teacher);
   const [marks,setMarks]=useState(()=>lsG("marks").filter(m=>teacher&&String(m.tid)===String(teacher.id)));
@@ -45,5 +42,5 @@ export function STMarks({student}){
 
 export function PTMarks({child}){
   const marks=lsG("marks").filter(m=>child&&String(m.sid)===String(child.id));const avg=marks.length?Math.round(marks.reduce((a,m)=>a+(m.marks/m.total*100),0)/marks.length):null;const gc=avg!=null?(avg>=80?"#22C55E":avg>=60?"#F5A623":"#EF4444"):C.sub;const gl=avg!=null?(avg>=90?"A+":avg>=80?"A":avg>=70?"B+":avg>=60?"B":avg>=50?"C":"D"):null;
-  return <div>{avg!==null&&<Card className="fu" style={{textAlign:"center",marginBottom:16,padding:"22px 18px",background:"linear-gradient(135deg,#5B4FE8,#7B6FF5)",border:"none"}}><div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginBottom:8}}>{child?.name}'s Performance</div><div style={{display:"flex",justifyContent:"center",gap:22}}><div><div style={{fontSize:42,fontWeight:900,color:"#fff"}}>{gl}</div><div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>Grade</div></div><div style={{width:1,background:"rgba(255,255,255,.2)"}}/><div><div style={{fontSize:42,fontWeight:900,color:"#fff"}}>{avg}%</div><div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>Average</div></div></div></Card>)}<Sec title="Exam Results 📊"/>{marks.length===0?<Card style={{textAlign:"center",padding:28}}><div style={{fontSize:28,marginBottom:6}}>📊</div><div style={{color:C.sub,fontSize:13}}>No marks recorded yet</div></Card>:marks.map((m,i)=>{const pct=Math.round(m.marks/m.total*100),c=pct>=80?"#22C55E":pct>=60?"#F5A623":"#EF4444";return <Card key={m.id} className={"fu d"+(i%3+1)} style={{marginBottom:9}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:700,color:C.text,fontSize:13}}>{m.exam}</div><div style={{fontSize:11,color:C.sub}}>{m.subject} · {m.date}</div></div><div style={{fontWeight:900,fontSize:18,color:c}}>{m.marks}/{m.total} <span style={{fontSize:12,fontWeight:400}}>({pct}%)</span></div></div></Card>})}</div>;
+  return <div>{avg!==null&&<Card className="fu" style={{textAlign:"center",marginBottom:16,padding:"22px 18px",background:"linear-gradient(135deg,#5B4FE8,#7B6FF5)",border:"none"}}><div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginBottom:8}}>{child?.name}'s Performance</div><div style={{display:"flex",justifyContent:"center",gap:22}}><div><div style={{fontSize:42,fontWeight:900,color:"#fff"}}>{gl}</div><div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>Grade</div></div><div style={{width:1,background:"rgba(255,255,255,.2)"}}/><div><div style={{fontSize:42,fontWeight:900,color:"#fff"}}>{avg}%</div><div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>Average</div></div></div></Card>}<Sec title="Exam Results 📊"/>{marks.length===0?<Card style={{textAlign:"center",padding:28}}><div style={{fontSize:28,marginBottom:6}}>📊</div><div style={{color:C.sub,fontSize:13}}>No marks recorded yet</div></Card>:marks.map((m,i)=>{const pct=Math.round(m.marks/m.total*100),c=pct>=80?"#22C55E":pct>=60?"#F5A623":"#EF4444";return <Card key={m.id} className={"fu d"+(i%3+1)} style={{marginBottom:9}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:700,color:C.text,fontSize:13}}>{m.exam}</div><div style={{fontSize:11,color:C.sub}}>{m.subject} · {m.date}</div></div><div style={{fontWeight:900,fontSize:18,color:c}}>{m.marks}/{m.total} <span style={{fontSize:12,fontWeight:400}}>({pct}%)</span></div></div></Card>})}</div>;
 }
