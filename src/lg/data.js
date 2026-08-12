@@ -61,7 +61,7 @@ async function loadTimetable(){
  if(teacherIds.length){const{data,error:teacherError}=await supabase.from("teachers").select("id,name,tid").in("id",teacherIds);if(!teacherError)teachers=data||[]}
  const byBatch=new Map(batches.map(b=>[String(b.id),b]));
  const byTeacher=new Map(teachers.map(t=>[String(t.id),t]));
- const mapped=rows.map(r=>{const b=byBatch.get(String(r.batch_id));const teacher=byTeacher.get(String(r.teacher_id));const day=DAYS[Math.max(0,Math.min(6,Number(r.day_of_week||1)))];return{...r,tid:r.teacher_id,teacher_id:r.teacher_id,batchId:r.batch_id,cls:b?.cls??"",sec:b?.sec??"",batchName:b?.name??"",subject:r.subject_name,teacherName:teacher?.name??"",teacherTid:teacher?.tid??"",day,slot:`${String(r.start_time||"").slice(0,5)}–${String(r.end_time||"").slice(0,5)}`}});
+ const mapped=rows.map(r=>{const b=byBatch.get(String(r.batch_id));const teacher=byTeacher.get(String(r.teacher_id));const day=DAYS[Math.max(0,Math.min(6,Number(r.day_of_week||1)-1))];return{...r,tid:r.teacher_id,teacher_id:r.teacher_id,batchId:r.batch_id,cls:b?.cls??"",sec:b?.sec??"",batchName:b?.name??"",subject:r.subject_name,teacherName:teacher?.name??"",teacherTid:teacher?.tid??"",day,slot:`${String(r.start_time||"").slice(0,5)}–${String(r.end_time||"").slice(0,5)}`}});
  lsS("timetable",mapped);return mapped;
 }
 
