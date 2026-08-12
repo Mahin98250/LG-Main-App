@@ -13,8 +13,6 @@ export const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Fr
 export const today = () => DAYS[new Date().getDay()];
 export const uid = () => "u" + Date.now() + Math.random().toString(36).slice(2, 6);
 
-// Canonical institute subject catalog. Keep this as the single source of truth
-// for admin, teacher, homework, materials, marks and timetable subject choices.
 export const SUBJECTS_BY_CLASS = {
   "9": ["Science", "English", "Maths", "Social Studies"],
   "10": ["Science", "English", "Maths", "Social Studies"],
@@ -22,10 +20,7 @@ export const SUBJECTS_BY_CLASS = {
   "12": ["Accountancy", "Business Studies", "Economics", "Applied Mathematics", "Informatics Practices", "Entrepreneurship", "Physical Education"],
 };
 export const ALL_SUBJECTS = [...new Set(Object.values(SUBJECTS_BY_CLASS).flat())];
-export const subjectsForClasses = (classes = []) => {
-  const selected = classes.map(String).flatMap((cls) => SUBJECTS_BY_CLASS[cls] || []);
-  return [...new Set(selected)];
-};
+export const subjectsForClasses = (classes = []) => [...new Set(classes.map(String).flatMap((cls) => SUBJECTS_BY_CLASS[cls] || []))];
 
 const hasLS = () => typeof window !== "undefined" && !!window.localStorage;
 const lsK = (t) => "lg_" + t;
@@ -58,12 +53,12 @@ async function scopeMaterials(rows) {
   const role = String(user?.app_metadata?.role || "");
   const ref = user?.app_metadata?.ref ? String(user.app_metadata.ref) : "";
   if (!user || !role || role === "admin") return clean;
-  if (role === "teacher") return clean.filter(m => String(m.tid || "") === ref);
+  if (role === "teacher") return clean.filter((m) => !m.tid || String(m.tid) === ref);
   if (role === "student" || role === "parent") {
     if (!ref) return [];
     const { data: student, error } = await supabase.from("students").select("cls,sec").eq("id", ref).maybeSingle();
     if (error || !student) return [];
-    return clean.filter(m => String(m.cls || "") === String(student.cls || "") && String(m.sec || "") === String(student.sec || ""));
+    return clean.filter((m) => (m.cls == null || String(m.cls) === String(student.cls)) && (m.sec == null || String(m.sec) === String(student.sec)));
   }
   return [];
 }
