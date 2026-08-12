@@ -1,4 +1,4 @@
-const CACHE = "learners-guide-v3";
+const CACHE = "learners-guide-v4";
 const APP_SHELL = ["./", "./manifest.webmanifest", "./pwa-icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -15,6 +15,39 @@ self.addEventListener("activate", (event) => {
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
+});
+
+self.addEventListener("push", (event) => {
+  event.waitUntil((async () => {
+    let payload = {};
+    try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: event.data?.text?.() || "" }; }
+    const title = payload.title || "Learner's Guide";
+    const options = {
+      body: payload.body || "You have a new notification.",
+      icon: "/pwa-icon.svg",
+      badge: "/pwa-icon.svg",
+      tag: payload.notificationId || `lg-${Date.now()}`,
+      renotify: true,
+      data: { url: payload.url || "/app", notificationId: payload.notificationId || null },
+    };
+    await self.registration.showNotification(title, options);
+  })());
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || "/app", self.location.origin).href;
+  event.waitUntil((async () => {
+    const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of clients) {
+      if ("focus" in client) {
+        await client.focus();
+        if ("navigate" in client && client.url !== target) await client.navigate(target);
+        return;
+      }
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(target);
+  })());
 });
 
 self.addEventListener("fetch", (event) => {
