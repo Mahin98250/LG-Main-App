@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
+import { C } from "@/lg/data";
 import { supabase } from "@/lg/supabase";
-import { C, GLOBAL_CSS, LGLogo, Bubbles, BackBtn, WBtn, Inp } from "@/lg/ui";
+import { GLOBAL_CSS, LGLogo, Bubbles, BackBtn, WBtn, Inp } from "@/lg/ui";
 
 const baseUrl = () => `${window.location.origin}${import.meta.env.BASE_URL || "/"}`;
 
