@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getCurrentUser, signOut } from "@/lg/auth";
-import { clearCache, gdb, hydrateAll } from "@/lg/data";
+import { clearCache, gdb } from "@/lg/data";
 import { GLOBAL_CSS, LGLogo } from "@/lg/ui";
 import { TeacherApp } from "@/lg/teacherWorkflows";
 import { StudentApp } from "@/lg/student";
@@ -25,6 +25,21 @@ export const Route = createFileRoute("/app")({
 });
 
 type SessionUser = { id: string; name: string; phone: string; role: string; ref: string | null };
+
+const PREFETCH_BY_ROLE: Record<string, string[]> = {
+  teacher: ["students", "teachers", "timetable_entries", "batches", "batch_students", "batch_teachers", "attendance", "homework", "materials", "material_folders", "announcements", "marks", "examschedule", "subjects", "messages", "notifications"],
+  student: ["students", "timetable_entries", "batch_students", "batches", "attendance", "homework", "materials", "material_folders", "announcements", "fees", "marks", "examschedule", "subjects", "messages", "notifications"],
+  parent: ["students", "timetable_entries", "batch_students", "batches", "attendance", "homework", "materials", "material_folders", "announcements", "fees", "marks", "examschedule", "subjects", "messages", "notifications"],
+};
+
+async function prefetchRoleData(role: string) {
+  const tables = PREFETCH_BY_ROLE[role] || [];
+  const results = await Promise.allSettled(tables.map((table) => gdb(table)));
+  const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+  if (failures.length) {
+    console.warn("Some optional portal data could not be prefetched; the workflow will load it on demand.", failures.map((failure) => failure.reason instanceof Error ? failure.reason.message : String(failure.reason)));
+  }
+}
 
 function Splash({ label, action }: { label: string; action?: ReactNode }) {
   return (
@@ -54,9 +69,7 @@ function AppShell() {
     }
     clearCache();
     try {
-      // Parent workflow fetches its own relationship-scoped data. Avoid hydrating
-      // every application table for a parent before RLS-scoped portal loading.
-      if (current.role !== "parent") await hydrateAll();
+      await prefetchRoleData(current.role);
       setUser(current);
       setReady(true);
     } catch (error) {
@@ -75,7 +88,6 @@ function AppShell() {
       try {
         if (!cancelled) await gdb("notifications");
       } catch (error) {
-        // Notification sync must never block or break the main portal workflow.
         console.warn("Notification sync skipped:", error instanceof Error ? error.message : error);
       }
     };
