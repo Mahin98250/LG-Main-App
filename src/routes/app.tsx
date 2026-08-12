@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getCurrentUser, signOut } from "@/lg/auth";
-import { clearCache, hydrateAll } from "@/lg/data";
+import { clearCache, gdb, hydrateAll } from "@/lg/data";
 import { GLOBAL_CSS, LGLogo } from "@/lg/ui";
 import { TeacherApp } from "@/lg/teacherWorkflows";
 import { StudentApp } from "@/lg/student";
@@ -66,6 +66,22 @@ function AppShell() {
   }, [navigate]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!ready || !user) return;
+    let cancelled = false;
+    const syncNotifications = async () => {
+      try {
+        if (!cancelled) await gdb("notifications");
+      } catch (error) {
+        // Notification sync must never block or break the main portal workflow.
+        console.warn("Notification sync skipped:", error instanceof Error ? error.message : error);
+      }
+    };
+    void syncNotifications();
+    const timer = window.setInterval(() => { void syncNotifications(); }, 15000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [ready, user]);
 
   const handleLogout = async () => {
     clearCache();
