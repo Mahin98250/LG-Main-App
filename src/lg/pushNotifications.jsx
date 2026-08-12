@@ -52,8 +52,21 @@ export function PushNotificationPrompt({ user }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   useEffect(() => {
-    if (!user || !supported() || Notification.permission === "denied" || Notification.permission === "granted") return;
-    setVisible(true);
+    let cancelled = false;
+    const check = async () => {
+      if (!user || !supported() || Notification.permission === "denied") return;
+      try {
+        const base = import.meta.env.BASE_URL || "/";
+        const registration = await navigator.serviceWorker.register(`${base}sw.js`, { scope: base });
+        await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (!cancelled && (!subscription || Notification.permission !== "granted")) setVisible(true);
+      } catch (error) {
+        console.warn("Push subscription check skipped:", error instanceof Error ? error.message : error);
+      }
+    };
+    void check();
+    return () => { cancelled = true; };
   }, [user]);
   if (!visible) return null;
   const enable = async () => {
