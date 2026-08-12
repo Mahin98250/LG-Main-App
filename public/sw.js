@@ -1,6 +1,15 @@
-const CACHE = "learners-guide-v5";
+const CACHE = "learners-guide-v6";
 const APP_SHELL = ["./", "./manifest.webmanifest", "./pwa-icon.svg"];
 const APP_SCOPE = self.registration?.scope || self.location.href;
+
+function appUrl(value) {
+  const raw = String(value || "app");
+  // Keep notification links inside the installed PWA scope, including the
+  // GitHub Pages deployment at /LG-Main-App/.
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const relative = raw.replace(/^\/+/, "");
+  return new URL(relative || "app", APP_SCOPE).href;
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -30,7 +39,7 @@ self.addEventListener("push", (event) => {
       badge: icon,
       tag: payload.notificationId || `lg-${Date.now()}`,
       renotify: true,
-      data: { url: payload.url || "app", notificationId: payload.notificationId || null },
+      data: { url: appUrl(payload.url || "app"), notificationId: payload.notificationId || null },
     };
     await self.registration.showNotification(title, options);
   })());
@@ -38,7 +47,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || "app", APP_SCOPE).href;
+  const target = appUrl(event.notification.data?.url || "app");
   event.waitUntil((async () => {
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const client of clients) {
