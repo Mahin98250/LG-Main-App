@@ -1,0 +1,7 @@
+project_id = ""
+
+[functions.auth-login]
+verify_jwt = false
+
+[functions.admin-provision-user]
+verify_jwt = false
