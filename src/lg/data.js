@@ -15,9 +15,6 @@ export const lsS=(t,v)=>{if(!hasLS())return;try{localStorage.setItem(lsK(t),JSON
 export const TABLES=["students","teachers","users","timetable","timetable_entries","batches","batch_students","batch_teachers","attendance","homework","materials","announcements","fees","marks","messages","notifications","examschedule","subjects","material_folders","academic_years","rooms"];
 export const clearCache=()=>{if(!hasLS())return;for(const t of TABLES){try{localStorage.removeItem(lsK(t))}catch{}}};
 
-// Only hydrate tables that the signed-in portal actually needs. The old
-// Promise.all(TABLES.map(...)) pattern queried admin-only/irrelevant tables
-// for every role and turned harmless RLS denials into a wall of 401 errors.
 const PORTAL_TABLES={
   teacher:["teachers","students","batches","batch_students","batch_teachers","attendance","homework","materials","announcements","fees","marks","messages","notifications","timetable_entries","subjects","material_folders","examschedule","rooms"],
   student:["students","teachers","batches","batch_students","attendance","homework","materials","announcements","fees","marks","messages","notifications","timetable_entries","subjects","material_folders","examschedule"],
@@ -25,18 +22,23 @@ const PORTAL_TABLES={
   admin:TABLES,
 };
 
+async function currentRole(){const{data}=await supabase.auth.getUser();return String(data?.user?.app_metadata?.role||"");}
 async function enrichMaterials(rows){const clean=Array.isArray(rows)?rows:[];if(!clean.length)return clean;const enriched=[];for(const row of clean){let pdfData=null;if(row.storage_path){const{data,error}=await supabase.storage.from("materials").createSignedUrl(row.storage_path,3600,{download:row.name||row.title||"material"});if(!error)pdfData=data?.signedUrl||null}enriched.push({...row,pdfData,pdfName:row.name||row.title||"material"})}return enriched}
 const normalizeStudentRead=row=>({...row,parentName:row.parentname??row.parentName??"",parentPhone:row.parentphone??row.parentPhone??""});
 
 async function enrichStudentsWithBatch(rows){
  const clean=Array.isArray(rows)?rows:[];
  if(!clean.length)return clean.map(normalizeStudentRead);
+ const role=await currentRole();
+ // Admin already receives the complete student row through the admin RLS policy.
+ // Do not make a second batch-membership request for admin records; that request
+ // used to turn a successful student query into "Unable to load records".
+ if(role==="admin")return clean.map(normalizeStudentRead);
  const studentIds=clean.map(s=>s?.id).filter(Boolean).map(String);
  const{data:members,error}=await supabase.from("batch_students").select("batch_id,student_id,status").in("student_id",studentIds).eq("status","active");
  if(error){console.warn("Unable to load student batch memberships:",error.message);return clean.map(normalizeStudentRead)}
  const{data:authData}=await supabase.auth.getUser();
  const authUser=authData?.user;
- const role=String(authUser?.app_metadata?.role||"");
  const ref=authUser?.app_metadata?.ref?String(authUser.app_metadata.ref):"";
  let allowedBatchIds=null;
  if(role==="teacher"&&ref){
@@ -44,10 +46,7 @@ async function enrichStudentsWithBatch(rows){
    if(slotError){console.warn("Unable to load teacher timetable assignments:",slotError.message);allowedBatchIds=new Set()}
    else allowedBatchIds=new Set((teacherSlots||[]).map(s=>s.batch_id).filter(Boolean).map(String));
  }
- if(allowedBatchIds){
-   const scopedMembers=(members||[]).filter(m=>allowedBatchIds.has(String(m.batch_id)));
-   members.splice(0,members.length,...scopedMembers);
- }
+ if(allowedBatchIds){const scopedMembers=(members||[]).filter(m=>allowedBatchIds.has(String(m.batch_id)));members.splice(0,members.length,...scopedMembers)}
  const activeByStudent=new Map((members||[]).map(m=>[String(m.student_id),m]));
  const batchIds=[...new Set((members||[]).map(m=>m.batch_id).filter(Boolean).map(String))];
  let batches=[];
@@ -56,14 +55,7 @@ async function enrichStudentsWithBatch(rows){
  return clean.map(raw=>{const row=normalizeStudentRead(raw);const membership=activeByStudent.get(String(row.id));const batch=membership?byBatch.get(String(membership.batch_id)):null;return{...row,batch_id:membership?.batch_id??null,batchId:membership?.batch_id??null,batchName:batch?.name??"",batchClass:batch?.cls??row.cls??"",batchSection:batch?.sec??row.sec??""}}).filter(row=>role!=="teacher"||Boolean(row.batch_id));
 }
 
-async function scopeMaterials(rows){
- const clean=Array.isArray(rows)?rows:[];
- const{data:authData}=await supabase.auth.getUser();
- const user=authData?.user;
- const role=String(user?.app_metadata?.role||"");
- if(!user||!role||role==="admin")return clean;
- return clean;
-}
+async function scopeMaterials(rows){return rows}
 
 async function loadTimetable(){
  const{data:entries,error}=await supabase.from("timetable_entries").select("*").eq("status","active");
@@ -73,12 +65,7 @@ async function loadTimetable(){
  const user=authData?.user;
  const role=String(user?.app_metadata?.role||"");
  const ref=user?.app_metadata?.ref?String(user.app_metadata.ref):"";
- if((role==="student"||role==="parent")&&ref){
-   const{data:members,error:membershipError}=await supabase.from("batch_students").select("batch_id").eq("student_id",ref).eq("status","active");
-   if(membershipError)throw membershipError;
-   const batchIds=new Set((members||[]).map(m=>String(m.batch_id)).filter(Boolean));
-   rows=batchIds.size?rows.filter(r=>batchIds.has(String(r.batch_id))):[];
- }
+ if((role==="student"||role==="parent")&&ref){const{data:members,error:membershipError}=await supabase.from("batch_students").select("batch_id").eq("student_id",ref).eq("status","active");if(membershipError)throw membershipError;const batchIds=new Set((members||[]).map(m=>String(m.batch_id)).filter(Boolean));rows=batchIds.size?rows.filter(r=>batchIds.has(String(r.batch_id))):[]}
  if(role==="teacher"&&ref)rows=rows.filter(r=>String(r.teacher_id)===ref);
  if(!rows.length){lsS("timetable",[]);return[]}
  const batchIds=[...new Set(rows.map(r=>r.batch_id).filter(Boolean).map(String))];
@@ -104,17 +91,7 @@ export const gdb=async t=>{
  lsS(t,rows);return rows;
 };
 
-export const hydrateForRole=async(role)=>{
- const tables=PORTAL_TABLES[String(role||"")]||[];
- if(!tables.length)return;
- const results=await Promise.allSettled(tables.map(t=>gdb(t)));
- const denied=results.filter(r=>r.status==="rejected");
- if(denied.length){
-   // Keep the portal usable when an optional table is temporarily unavailable;
-   // the workflow can retry that table when the feature is opened.
-   console.warn(`Portal preload skipped ${denied.length} unavailable dataset(s).`);
- }
-};
+export const hydrateForRole=async(role)=>{const tables=PORTAL_TABLES[String(role||"")]||[];if(!tables.length)return;const results=await Promise.allSettled(tables.map(t=>gdb(t)));const denied=results.filter(r=>r.status==="rejected");if(denied.length)console.warn(`Portal preload skipped ${denied.length} unavailable dataset(s).`)};
 
 const WRITE_COLUMNS={students:new Set(["id","name","sid","cls","sec","parentname","parentphone","parent","enroll","status"]),teachers:new Set(["id","name","tid","subject","phone","classes","status"]),users:new Set(["id","name","phone","email","role","ref","status","auth_id","created_at"])};
 const STUDENT_FIELD_ALIASES={parentName:"parentname",parentPhone:"parentphone"};
