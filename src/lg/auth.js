@@ -41,7 +41,7 @@ export const resolveRef = async (role, loginId) => {
   return data?.id || null;
 };
 
-const toUser = async (authUser, requestedRole) => {
+const toUser = (authUser, requestedRole) => {
   const userMetadata = authUser?.user_metadata || {};
   const appMetadata = authUser?.app_metadata || {};
   return {
@@ -66,13 +66,8 @@ const validateProfile = async (user, role) => {
     .eq("id", user.ref)
     .maybeSingle();
 
-  if (error) {
-    return { ok: false, error: "We could not verify your institute profile. Please try again." };
-  }
-
-  if (!data) {
-    return { ok: false, error: "Your institute profile no longer exists. Please contact the administrator." };
-  }
+  if (error) return { ok: false, error: "We could not verify your institute profile. Please try again." };
+  if (!data) return { ok: false, error: "Your institute profile no longer exists. Please contact the administrator." };
 
   const status = String(data[config.statusField] || "active").toLowerCase();
   if (["inactive", "disabled", "suspended", "deleted"].includes(status)) {
@@ -94,22 +89,19 @@ export async function signIn(loginId, password, role) {
     password,
   });
 
-  if (error || !data.user) {
-    return { user: null, error: "Invalid login ID or password." };
-  }
+  if (error || !data.user) return { user: null, error: "Invalid login ID or password." };
 
   const appRole = data.user.app_metadata?.role;
   if (!appRole) {
     await supabase.auth.signOut();
     return { user: null, error: "Your account has not been approved by the institute administrator yet." };
   }
-
   if (appRole !== role) {
     await supabase.auth.signOut();
     return { user: null, error: `That account is registered as a ${appRole}.` };
   }
 
-  const user = await toUser(data.user, role);
+  const user = toUser(data.user, role);
   const profileCheck = await validateProfile(user, role);
   if (!profileCheck.ok) {
     await supabase.auth.signOut();
@@ -131,7 +123,7 @@ export async function getCurrentUser() {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
 
-  const user = await toUser(data.user);
+  const user = toUser(data.user);
   if (!user.role) return null;
 
   const profileCheck = await validateProfile(user, user.role);
@@ -152,4 +144,4 @@ export function onAuthStateChange(callback) {
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
-};
+}
