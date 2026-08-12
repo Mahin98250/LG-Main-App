@@ -12,7 +12,6 @@ export const ROLES = [
 export const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const today = () => DAYS[new Date().getDay()];
 export const uid = () => "u" + Date.now() + Math.random().toString(36).slice(2, 6);
-
 const hasLS = () => typeof window !== "undefined" && !!window.localStorage;
 const lsK = (t) => "lg_" + t;
 export const lsG = (t) => { if (!hasLS()) return []; try { return JSON.parse(localStorage.getItem(lsK(t)) || "[]"); } catch { return []; } };
@@ -35,70 +34,46 @@ async function enrichMaterials(rows) {
   return enriched;
 }
 
-const normalizeStudentRead = (row) => ({
-  ...row,
-  parentName: row.parentname ?? row.parentName ?? "",
-  parentPhone: row.parentphone ?? row.parentPhone ?? "",
-});
+const normalizeStudentRead = (row) => ({ ...row, parentName: row.parentname ?? row.parentName ?? "", parentPhone: row.parentphone ?? row.parentPhone ?? "" });
+
+async function scopeMaterials(rows) {
+  const clean = Array.isArray(rows) ? rows : [];
+  const { data: authData } = await supabase.auth.getUser();
+  const user = authData?.user;
+  const role = String(user?.app_metadata?.role || "");
+  const ref = user?.app_metadata?.ref ? String(user.app_metadata.ref) : "";
+  if (!user || !role || role === "admin") return clean;
+  if (role === "teacher") return clean.filter(m => String(m.tid || "") === ref);
+  if (role === "student" || role === "parent") {
+    if (!ref) return [];
+    const { data: student, error } = await supabase.from("students").select("cls,sec").eq("id", ref).maybeSingle();
+    if (error || !student) return [];
+    return clean.filter(m => String(m.cls || "") === String(student.cls || "") && String(m.sec || "") === String(student.sec || ""));
+  }
+  return [];
+}
 
 export const gdb = async (t) => {
   const { data, error } = await supabase.from(t).select("*");
   if (error) { console.error(`Supabase read failed [${t}]:`, error.message); throw error; }
   let rows = Array.isArray(data) ? data : [];
   if (t === "students") rows = rows.map(normalizeStudentRead);
+  if (t === "materials") rows = await scopeMaterials(rows);
   if (t === "materials") rows = await enrichMaterials(rows);
   lsS(t, rows);
   return rows;
 };
 
-// Only include columns that are actually writable by the legacy learner UI.
-// Parent fields are deliberately kept in their database spelling (parentname/
-// parentphone). The old camelCase parentName/parentPhone keys caused Postgres
-// trigger errors because those columns do not exist in the students table.
 const WRITE_COLUMNS = {
   students: new Set(["id","name","sid","cls","sec","parentname","parentphone","parent","enroll","status"]),
   teachers: new Set(["id","name","tid","subject","phone","classes","status"]),
   users: new Set(["id","name","phone","email","role","ref","status","auth_id","created_at"]),
 };
 const STUDENT_FIELD_ALIASES = { parentName: "parentname", parentPhone: "parentphone" };
-const sanitizeWrite = (table, payload) => {
-  const allowed = WRITE_COLUMNS[table];
-  if (!allowed) return payload;
-  const normalized = { ...payload };
-  if (table === "students") {
-    for (const [from, to] of Object.entries(STUDENT_FIELD_ALIASES)) {
-      if (normalized[from] !== undefined && normalized[to] === undefined) normalized[to] = normalized[from];
-      delete normalized[from];
-    }
-  }
-  return Object.fromEntries(Object.entries(normalized).filter(([key]) => allowed.has(key)));
-};
+const sanitizeWrite = (table, payload) => { const allowed = WRITE_COLUMNS[table]; if (!allowed) return payload; const normalized = { ...payload }; if (table === "students") { for (const [from, to] of Object.entries(STUDENT_FIELD_ALIASES)) { if (normalized[from] !== undefined && normalized[to] === undefined) normalized[to] = normalized[from]; delete normalized[from]; } } return Object.fromEntries(Object.entries(normalized).filter(([key]) => allowed.has(key))); };
 const upsertLocal = (t, v) => { const c = lsG(t); const i = c.findIndex((x) => x && x.id === v.id); if (i === -1) c.push(v); else c[i] = { ...c[i], ...v }; lsS(t, c); };
-export const addR = async (t, row) => {
-  const payload = sanitizeWrite(t, row);
-  const { data, error } = await supabase.from(t).insert(payload).select().maybeSingle();
-  if (error) { console.error(`Supabase insert failed [${t}]:`, error.message); throw error; }
-  if (!data) throw new Error("Supabase insert succeeded but returned no row.");
-  upsertLocal(t, data); return data;
-};
-export const updR = async (t, id, p) => {
-  const payload = sanitizeWrite(t, p); delete payload.id;
-  const { data, error } = await supabase.from(t).update(payload).eq("id", id).select().maybeSingle();
-  if (error) { console.error(`Supabase update failed [${t}]:`, error.message); throw error; }
-  if (!data) throw new Error("No row was updated. The record may not exist or RLS may have blocked access.");
-  upsertLocal(t, data); return data;
-};
-export const delR = async (t, id) => {
-  const { data, error } = await supabase.from(t).delete().eq("id", id).select().maybeSingle();
-  if (error) { console.error(`Supabase delete failed [${t}]:`, error.message); throw error; }
-  if (!data) throw new Error("No row was deleted. The record may not exist or RLS may have blocked access.");
-  lsS(t, lsG(t).filter((r) => r.id !== id)); return data;
-};
-export const sdb = async (t, nextRows) => {
-  const previous = lsG(t);
-  const next = Array.isArray(nextRows) ? nextRows : [];
-  const nextIds = new Set(next.map((r) => r?.id));
-  for (const row of previous) if (row?.id && !nextIds.has(row.id)) await delR(t, row.id);
-  lsS(t, next); return next;
-};
+export const addR = async (t, row) => { const payload = sanitizeWrite(t, row); const { data, error } = await supabase.from(t).insert(payload).select().maybeSingle(); if (error) { console.error(`Supabase insert failed [${t}]:`, error.message); throw error; } if (!data) throw new Error("Supabase insert succeeded but returned no row."); upsertLocal(t, data); return data; };
+export const updR = async (t, id, p) => { const payload = sanitizeWrite(t, p); delete payload.id; const { data, error } = await supabase.from(t).update(payload).eq("id", id).select().maybeSingle(); if (error) { console.error(`Supabase update failed [${t}]:`, error.message); throw error; } if (!data) throw new Error("No row was updated. The record may not exist or RLS may have blocked access."); upsertLocal(t, data); return data; };
+export const delR = async (t, id) => { const { data, error } = await supabase.from(t).delete().eq("id", id).select().maybeSingle(); if (error) { console.error(`Supabase delete failed [${t}]:`, error.message); throw error; } if (!data) throw new Error("No row was deleted. The record may not exist or RLS may have blocked access."); lsS(t, lsG(t).filter((r) => r.id !== id)); return data; };
+export const sdb = async (t, nextRows) => { const previous = lsG(t); const next = Array.isArray(nextRows) ? nextRows : []; const nextIds = new Set(next.map((r) => r?.id)); for (const row of previous) if (row?.id && !nextIds.has(row.id)) await delR(t, row.id); lsS(t, next); return next; };
 export const hydrateAll = async () => { await Promise.all(TABLES.map((t) => gdb(t))); };
