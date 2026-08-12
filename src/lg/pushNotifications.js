@@ -27,7 +27,8 @@ export async function enablePushNotifications() {
   const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
   if (permission !== "granted") throw new Error("Notification permission was not granted.");
 
-  const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  const base = import.meta.env.BASE_URL || "/";
+  const registration = await navigator.serviceWorker.register(`${base}sw.js`, { scope: base });
   await navigator.serviceWorker.ready;
   const publicKey = await getPublicKey();
   let subscription = await registration.pushManager.getSubscription();
