@@ -60,6 +60,15 @@ async function signInViaGateway(loginId, password, role) {
   return { user: sessionData.user, error: null };
 }
 
+async function signInAdminDirectly(loginId, password) {
+  // Admin login must not depend on the auth-login Edge Function. If that function is
+  // unavailable, Supabase Auth can still securely authenticate the administrator directly.
+  const email = authEmail(loginId, "admin");
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error || !data?.user) return { user: null, error: error?.message || "Invalid admin login ID or password." };
+  return { user: data.user, error: null };
+}
+
 export async function signIn(loginId, password, role) {
   const cleanLogin = String(loginId || "").trim();
   if (!cleanLogin || !password) return { user: null, error: "Enter your login ID and password." };
@@ -67,7 +76,11 @@ export async function signIn(loginId, password, role) {
 
   let authResult;
   try {
-    authResult = await signInViaGateway(cleanLogin, password, role);
+    // The admin account is a normal Supabase Auth account, so do not make admin
+    // login depend on a separately deployed Edge Function.
+    authResult = role === "admin"
+      ? await signInAdminDirectly(cleanLogin, password)
+      : await signInViaGateway(cleanLogin, password, role);
   } catch {
     authResult = { user: null, error: "Unable to sign in right now. Please try again." };
   }
