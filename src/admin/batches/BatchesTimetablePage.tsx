@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { C, addR, delR, gdb, supabase, updR } from "@/lg/data";
+import { C, addR, delR, gdb, updR } from "@/lg/data";
+import { supabase } from "@/lg/supabase";
 
 type Row = Record<string, any> & { id?: string | number };
 const CLASSES = ["9", "10", "11", "12"];
