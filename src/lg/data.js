@@ -24,12 +24,29 @@ async function enrichStudentsWithBatch(rows){
  const studentIds=clean.map(s=>s?.id).filter(Boolean).map(String);
  const{data:members,error}=await supabase.from("batch_students").select("batch_id,student_id,status").in("student_id",studentIds).eq("status","active");
  if(error){console.warn("Unable to load student batch memberships:",error.message);return clean.map(normalizeStudentRead)}
+ const{data:authData}=await supabase.auth.getUser();
+ const authUser=authData?.user;
+ const role=String(authUser?.app_metadata?.role||"");
+ const ref=authUser?.app_metadata?.ref?String(authUser.app_metadata.ref):"";
+ let allowedBatchIds=null;
+ // Teacher data is scoped by actual timetable batch assignments. This is the
+ // authoritative relationship for multi-batch institutes; class/section alone
+ // must never grant a teacher access to another batch.
+ if(role==="teacher"&&ref){
+   const{data:teacherSlots,error:slotError}=await supabase.from("timetable_entries").select("batch_id").eq("teacher_id",ref).eq("status","active");
+   if(slotError){console.warn("Unable to load teacher timetable assignments:",slotError.message);allowedBatchIds=new Set()}
+   else allowedBatchIds=new Set((teacherSlots||[]).map(s=>s.batch_id).filter(Boolean).map(String));
+ }
+ if(allowedBatchIds){
+   const scopedMembers=(members||[]).filter(m=>allowedBatchIds.has(String(m.batch_id)));
+   members.splice(0,members.length,...scopedMembers);
+ }
  const activeByStudent=new Map((members||[]).map(m=>[String(m.student_id),m]));
  const batchIds=[...new Set((members||[]).map(m=>m.batch_id).filter(Boolean).map(String))];
  let batches=[];
  if(batchIds.length){const{data,error:batchError}=await supabase.from("batches").select("id,name,cls,sec,status").in("id",batchIds);if(!batchError)batches=data||[];else console.warn("Unable to load student batch details:",batchError.message)}
  const byBatch=new Map(batches.map(b=>[String(b.id),b]));
- return clean.map(raw=>{const row=normalizeStudentRead(raw);const membership=activeByStudent.get(String(row.id));const batch=membership?byBatch.get(String(membership.batch_id)):null;return{...row,batch_id:membership?.batch_id??row.batch_id??null,batchId:membership?.batch_id??row.batchId??null,batchName:batch?.name??row.batchName??"",batchClass:batch?.cls??row.batchClass??row.cls??"",batchSection:batch?.sec??row.batchSection??row.sec??""}});
+ return clean.map(raw=>{const row=normalizeStudentRead(raw);const membership=activeByStudent.get(String(row.id));const batch=membership?byBatch.get(String(membership.batch_id)):null;return{...row,batch_id:membership?.batch_id??null,batchId:membership?.batch_id??null,batchName:batch?.name??"",batchClass:batch?.cls??row.cls??"",batchSection:batch?.sec??row.sec??""}}).filter(row=>role!=="teacher"||Boolean(row.batch_id));
 }
 
 async function scopeMaterials(rows){const clean=Array.isArray(rows)?rows:[];const{data:authData}=await supabase.auth.getUser();const user=authData?.user;const role=String(user?.app_metadata?.role||"");const ref=user?.app_metadata?.ref?String(user.app_metadata.ref):"";if(!user||!role||role==="admin")return clean;if(role==="teacher")return clean.filter(m=>!m.tid||String(m.tid)===ref);if(role==="student"||role==="parent"){if(!ref)return[];const{data:student,error}=await supabase.from("students").select("cls,sec").eq("id",ref).maybeSingle();if(error||!student)return[];return clean.filter(m=>(m.cls==null||String(m.cls)===String(student.cls))&&(m.sec==null||String(m.sec)===String(student.sec)))}return[]}
@@ -42,15 +59,12 @@ async function loadTimetable(){
  const user=authData?.user;
  const role=String(user?.app_metadata?.role||"");
  const ref=user?.app_metadata?.ref?String(user.app_metadata.ref):"";
- // Student/parent timetable visibility is determined by the student's active batch,
- // not by class/section. This prevents Batch 10-A from seeing Batch 10-B classes.
  if((role==="student"||role==="parent")&&ref){
    const{data:membership,error:membershipError}=await supabase.from("batch_students").select("batch_id").eq("student_id",ref).eq("status","active").limit(1).maybeSingle();
    if(membershipError)throw membershipError;
    const batchId=membership?.batch_id?String(membership.batch_id):"";
    rows=batchId?rows.filter(r=>String(r.batch_id)===batchId):[];
  }
- // Teachers only receive their own scheduled entries. Admins receive everything.
  if(role==="teacher"&&ref)rows=rows.filter(r=>String(r.teacher_id)===ref);
  if(!rows.length){lsS("timetable",[]);return[]}
  const batchIds=[...new Set(rows.map(r=>r.batch_id).filter(Boolean).map(String))];
@@ -61,7 +75,7 @@ async function loadTimetable(){
  if(teacherIds.length){const{data,error:teacherError}=await supabase.from("teachers").select("id,name,tid").in("id",teacherIds);if(!teacherError)teachers=data||[]}
  const byBatch=new Map(batches.map(b=>[String(b.id),b]));
  const byTeacher=new Map(teachers.map(t=>[String(t.id),t]));
- const mapped=rows.map(r=>{const b=byBatch.get(String(r.batch_id));const teacher=byTeacher.get(String(r.teacher_id));const day=DAYS[Math.max(0,Math.min(6,Number(r.day_of_week||1)-1))];return{...r,tid:r.teacher_id,teacher_id:r.teacher_id,batchId:r.batch_id,cls:b?.cls??"",sec:b?.sec??"",batchName:b?.name??"",subject:r.subject_name,teacherName:teacher?.name??"",teacherTid:teacher?.tid??"",day,slot:`${String(r.start_time||"").slice(0,5)}–${String(r.end_time||"").slice(0,5)}`}});
+ const mapped=rows.map(r=>{const b=byBatch.get(String(r.batch_id));const teacher=byTeacher.get(String(r.teacher_id));const day=DAYS[Math.max(0,Math.min(6,Number(r.day_of_week||1)-1))];return{...r,tid:r.teacher_id,teacher_id:r.teacher_id,batchId:r.batch_id,cls:b?.cls??"",sec:b?.sec??"",batchName:b?.name??"",subject:r.subject_name,teacherName:teacher?.name??"",teacherTid:teacher?.tid??"",day,slot:`${String(r.start_time||"").slice(0,5)}–${String(r.end_time||"").slice(0,5)}`}}).sort((a,b)=>{const dayA=Number(a.day_of_week||0),dayB=Number(b.day_of_week||0);if(dayA!==dayB)return dayA-dayB;return String(a.start_time||"").localeCompare(String(b.start_time||""))});
  lsS("timetable",mapped);return mapped;
 }
 
