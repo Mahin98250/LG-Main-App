@@ -4,9 +4,12 @@ import { MaterialsDrive } from "@/admin/MaterialsDrive";
 import AdminRecordsPage from "@/admin/records/AdminRecordsPage";
 import BatchesTimetablePage from "@/admin/batches/BatchesTimetablePage";
 import AnnouncementsPage from "@/admin/AnnouncementsPage";
+import RecoverySettingsPage from "@/admin/RecoverySettingsPage";
 
 type AdminUser = { id: string; name: string; phone: string; role: string; ref: string | null };
-type View = "panel" | "drive" | "students" | "teachers" | "batches" | "announcements";
+type View = "panel" | "drive" | "students" | "teachers" | "batches" | "announcements" | "recovery";
+
+const Header = ({ title, onBack }: { title: string; onBack: () => void }) => <div style={{ padding: "12px 18px", background: "#0F1B3D", display: "flex", alignItems: "center", gap: 12 }}><button type="button" onClick={onBack} style={{ border: 0, borderRadius: 10, padding: "9px 13px", background: "#4361EE", color: "#fff", fontWeight: 800, cursor: "pointer" }}>← Admin Panel</button><span style={{ color: "#fff", fontWeight: 800 }}>{title}</span></div>;
 
 export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: () => void }) {
   const [view, setView] = useState<View>("panel");
@@ -22,15 +25,17 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
       if (text === "🎓 Students" || text === "Students") { event.preventDefault(); event.stopPropagation(); setView("students"); return; }
       if (text === "👨‍🏫 Teachers" || text === "Teachers") { event.preventDefault(); event.stopPropagation(); setView("teachers"); return; }
       if (text.includes("Batches & Timetable")) { event.preventDefault(); event.stopPropagation(); setView("batches"); return; }
-      if (text.includes("Announcements")) { event.preventDefault(); event.stopPropagation(); setView("announcements"); }
+      if (text.includes("Announcements")) { event.preventDefault(); event.stopPropagation(); setView("announcements"); return; }
+      if (text.includes("User Accounts")) { event.preventDefault(); event.stopPropagation(); setView("recovery"); }
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
   }, [view]);
 
-  if (view === "drive") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><div style={{ padding: "12px 18px", background: "#0F1B3D", display: "flex", alignItems: "center", gap: 12 }}><button type="button" onClick={() => setView("panel")} style={{ border: 0, borderRadius: 10, padding: "9px 13px", background: "#4361EE", color: "#fff", fontWeight: 800, cursor: "pointer" }}>← Admin Panel</button><span style={{ color: "#fff", fontWeight: 800 }}>Study Materials · Drive</span></div><MaterialsDrive /></div>;
-  if (view === "students" || view === "teachers") { const label = view === "students" ? "Students" : "Teachers"; return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><div style={{ padding: "12px 18px", background: "#0F1B3D", display: "flex", alignItems: "center", gap: 12 }}><button type="button" onClick={() => setView("panel")} style={{ border: 0, borderRadius: 10, padding: "9px 13px", background: "#4361EE", color: "#fff", fontWeight: 800, cursor: "pointer" }}>← Admin Panel</button><span style={{ color: "#fff", fontWeight: 800 }}>{label} · Production Management</span></div><AdminRecordsPage kind={view} /></div>; }
-  if (view === "batches") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><div style={{ padding: "12px 18px", background: "#0F1B3D", display: "flex", alignItems: "center", gap: 12 }}><button type="button" onClick={() => setView("panel")} style={{ border: 0, borderRadius: 10, padding: "9px 13px", background: "#4361EE", color: "#fff", fontWeight: 800, cursor: "pointer" }}>← Admin Panel</button><span style={{ color: "#fff", fontWeight: 800 }}>Batches & Timetable</span></div><BatchesTimetablePage /></div>;
-  if (view === "announcements") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><div style={{ padding: "12px 18px", background: "#0F1B3D", display: "flex", alignItems: "center", gap: 12 }}><button type="button" onClick={() => setView("panel")} style={{ border: 0, borderRadius: 10, padding: "9px 13px", background: "#4361EE", color: "#fff", fontWeight: 800, cursor: "pointer" }}>← Admin Panel</button><span style={{ color: "#fff", fontWeight: 800 }}>Announcements</span></div><AnnouncementsPage /></div>;
+  if (view === "drive") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Study Materials · Drive" onBack={() => setView("panel")} /><MaterialsDrive /></div>;
+  if (view === "students" || view === "teachers") { const label = view === "students" ? "Students" : "Teachers"; return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title={`${label} · Production Management`} onBack={() => setView("panel")} /><AdminRecordsPage kind={view} /></div>; }
+  if (view === "batches") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Batches & Timetable" onBack={() => setView("panel")} /><BatchesTimetablePage /></div>;
+  if (view === "announcements") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Announcements" onBack={() => setView("panel")} /><AnnouncementsPage /></div>;
+  if (view === "recovery") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Password Recovery · Account Security" onBack={() => setView("panel")} /><RecoverySettingsPage /></div>;
   return <ReferenceAdminPanel user={user} onLogout={onLogout} />;
 }
