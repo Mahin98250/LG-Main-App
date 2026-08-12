@@ -15,23 +15,47 @@ export const uid = () => "u" + Date.now() + Math.random().toString(36).slice(2, 
 
 const hasLS = () => typeof window !== "undefined" && !!window.localStorage;
 const lsK = (t) => "lg_" + t;
-export const lsG = (t) => { if (!hasLS()) return []; try { return JSON.parse(localStorage.getItem(lsK(t)) || "[]"); } catch { return []; } };
+export const lsG = (t) => { if (!hasLS()) return []; try { return JSON.parse(localStorage.getItem(lsK(t) || "[]")); } catch { return []; } };
 export const lsS = (t, v) => { if (!hasLS()) return; try { localStorage.setItem(lsK(t), JSON.stringify(v)); } catch {} };
 export const clearCache = () => { if (!hasLS()) return; for (const t of TABLES) { try { localStorage.removeItem(lsK(t)); } catch {} } };
 export const TABLES = ["students","teachers","users","timetable","batches","attendance","homework","materials","announcements","fees","marks","messages","notifications","examschedule","subjects","material_folders"];
 
+async function enrichMaterials(rows) {
+  const clean = Array.isArray(rows) ? rows : [];
+  if (!clean.length) return clean;
+
+  // Study materials are stored in a private Supabase Storage bucket. Students and
+  // teachers must receive short-lived download URLs rather than a public bucket URL.
+  // The existing student UI already understands pdfData/pdfName, so enriching the
+  // database rows here keeps the UI simple while making the source of truth Supabase.
+  const enriched = await Promise.all(clean.map(async (row) => {
+    if (!row.storage_path) return { ...row, pdfData: null, pdfName: row.name || row.title || "material" };
+    const { data, error } = await supabase.storage
+      .from("materials")
+      .createSignedUrl(row.storage_path, 3600, { download: row.name || row.title || "material" });
+    return {
+      ...row,
+      pdfData: error ? null : data?.signedUrl || null,
+      pdfName: row.name || row.title || "material",
+      // Legacy student cards filter by class/section. Admin-created Drive materials
+      // are institute-wide unless a future targeting field is added, so null means
+      // visible to every class in the student experience.
+      cls: row.cls ?? null,
+      sec: row.sec ?? null,
+    };
+  }));
+  return enriched;
+}
+
 export const gdb = async (t) => {
   const { data, error } = await supabase.from(t).select("*");
   if (error) { console.error(`Supabase read failed [${t}]:`, error.message); throw error; }
-  const rows = Array.isArray(data) ? data : [];
+  let rows = Array.isArray(data) ? data : [];
+  if (t === "materials") rows = await enrichMaterials(rows);
   lsS(t, rows);
   return rows;
 };
 
-// Only send columns that are part of the canonical public schema. Credentials are
-// deliberately excluded: passwords belong only in Supabase Auth, never in tables/localStorage.
-// Student parent fields intentionally use ONE naming convention: lowercase
-// parentname/parentphone. The old camelCase duplicates were removed by migration.
 const WRITE_COLUMNS = {
   students: new Set(["id","name","sid","cls","sec","parentname","parentphone","parent","enroll","status"]),
   teachers: new Set(["id","name","tid","subject","phone","classes","status"]),
