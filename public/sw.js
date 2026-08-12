@@ -1,5 +1,6 @@
-const CACHE = "learners-guide-v4";
+const CACHE = "learners-guide-v5";
 const APP_SHELL = ["./", "./manifest.webmanifest", "./pwa-icon.svg"];
+const APP_SCOPE = self.registration?.scope || self.location.href;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -22,13 +23,14 @@ self.addEventListener("push", (event) => {
     let payload = {};
     try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: event.data?.text?.() || "" }; }
     const title = payload.title || "Learner's Guide";
+    const icon = new URL("pwa-icon.svg", APP_SCOPE).href;
     const options = {
       body: payload.body || "You have a new notification.",
-      icon: "/pwa-icon.svg",
-      badge: "/pwa-icon.svg",
+      icon,
+      badge: icon,
       tag: payload.notificationId || `lg-${Date.now()}`,
       renotify: true,
-      data: { url: payload.url || "/app", notificationId: payload.notificationId || null },
+      data: { url: payload.url || "app", notificationId: payload.notificationId || null },
     };
     await self.registration.showNotification(title, options);
   })());
@@ -36,7 +38,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || "/app", self.location.origin).href;
+  const target = new URL(event.notification.data?.url || "app", APP_SCOPE).href;
   event.waitUntil((async () => {
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const client of clients) {
