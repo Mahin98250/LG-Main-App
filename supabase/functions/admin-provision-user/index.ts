@@ -6,9 +6,16 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const normalize = (value: string) => String(value || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-const authEmail = (role: string, id: string) => String(id).includes("@") ? String(id).trim().toLowerCase() : `${({ teacher: "t", student: "s", parent: "p", admin: "u" } as Record<string, string>)[role] || "u"}.${normalize(id)}@learnersguide.in`;
+const normalizeEmail = (value: string) => String(value || "").trim().toLowerCase();
+const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const authEmail = (role: string, id: string, recoveryEmail = "") => {
+  const recovery = normalizeEmail(recoveryEmail);
+  if (isEmail(recovery)) return recovery;
+  if (String(id).includes("@")) return normalizeEmail(id);
+  return `${({ teacher: "t", student: "s", parent: "p", admin: "u" } as Record<string, string>)[role] || "u"}.${normalize(id)}@learnersguide.in`;
+};
 
 async function findUser(a: ReturnType<typeof createClient>, email: string) {
   const { data, error } = await a.auth.admin.listUsers({ page: 1, perPage: 1000 });
@@ -63,9 +70,11 @@ Deno.serve(async (req) => {
     const name = String(body.name || "User").trim() || "User";
     const ref = body.ref ? String(body.ref) : null;
     const authId = body.authId ? String(body.authId) : null;
+    const recoveryEmail = normalizeEmail(String(body.recoveryEmail || ""));
     if (!["student", "parent", "teacher"].includes(role)) return json({ error: "Invalid role" }, 400);
     if (!["create", "update", "delete"].includes(action)) return json({ error: "Unsupported action" }, 400);
-    const email = loginId ? authEmail(role, loginId) : "";
+    if (recoveryEmail && !isEmail(recoveryEmail)) return json({ error: "Enter a valid recovery email address." }, 400);
+    const email = authEmail(role, loginId, recoveryEmail);
     const existingByEmail = email ? await findUser(admin, email) : null;
 
     if (action === "delete") {
@@ -86,7 +95,7 @@ Deno.serve(async (req) => {
         const existingRef = existingByEmail.app_metadata?.ref;
         if (existingRole && existingRole !== role) return json({ error: "This login ID is already used by another account type." }, 409);
         if (existingRef && ref && String(existingRef) !== String(ref)) return json({ error: "This login ID is already linked to another institute profile." }, 409);
-        const { data, error } = await admin.auth.admin.updateUserById(existingByEmail.id, { password, user_metadata: { ...(existingByEmail.user_metadata || {}), name, phone: loginId }, app_metadata: { ...(existingByEmail.app_metadata || {}), role, ref } });
+        const { data, error } = await admin.auth.admin.updateUserById(existingByEmail.id, { email: isEmail(recoveryEmail) ? recoveryEmail : existingByEmail.email, email_confirm: true, password, user_metadata: { ...(existingByEmail.user_metadata || {}), name, phone: loginId }, app_metadata: { ...(existingByEmail.app_metadata || {}), role, ref } });
         if (error) return json({ error: `Unable to repair authentication account: ${error.message}` }, 502);
         if (role === "parent") await syncParentLink(admin, data.user.id, ref);
         return json({ authId: data.user.id, email: data.user.email, updated: true, repaired: true });
@@ -111,7 +120,7 @@ Deno.serve(async (req) => {
     if (existingRole && existingRole !== role) return json({ error: "The authentication account belongs to a different role." }, 409);
     const patch: Record<string, unknown> = { user_metadata: { ...(user.user_metadata || {}), name, phone: loginId }, app_metadata: { ...(user.app_metadata || {}), role, ref } };
     if (password) patch.password = password;
-    if (user.email?.toLowerCase() !== email.toLowerCase()) { patch.email = email; patch.email_confirm = true; }
+    if (isEmail(recoveryEmail)) { patch.email = recoveryEmail; patch.email_confirm = true; }
     const { data, error } = await admin.auth.admin.updateUserById(user.id, patch);
     if (error) return json({ error: `Unable to update authentication account: ${error.message}` }, 502);
     if (role === "parent") await syncParentLink(admin, data.user.id, ref);
