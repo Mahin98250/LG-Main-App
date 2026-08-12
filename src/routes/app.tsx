@@ -5,11 +5,10 @@ import { clearCache, hydrateAll } from "@/lg/data";
 import { GLOBAL_CSS, LGLogo } from "@/lg/ui";
 import { TeacherApp } from "@/lg/teacherWorkflows";
 import { StudentApp } from "@/lg/student";
-import { ParentApp } from "@/lg/parent";
+import { ParentApp } from "@/lg/parentWorkflows";
 
 const title = "My Dashboard — Learner's Guide";
-const description =
-  "Your Learner's Guide dashboard: classes, attendance, homework, marks and fees.";
+const description = "Your Learner's Guide dashboard: classes, attendance, homework, marks and fees.";
 
 export const Route = createFileRoute("/app")({
   head: () => ({
@@ -28,24 +27,9 @@ type SessionUser = { id: string; name: string; phone: string; role: string; ref:
 
 function Splash({ label, action }: { label: string; action?: ReactNode }) {
   return (
-    <div
-      style={{
-        maxWidth: 430,
-        margin: "0 auto",
-        minHeight: "100vh",
-        background: "linear-gradient(160deg,#1a1060 0%,#2d1b8e 45%,#0e0a3a 100%)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 16,
-        padding: 28,
-      }}
-    >
+    <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "linear-gradient(160deg,#1a1060 0%,#2d1b8e 45%,#0e0a3a 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 28 }}>
       <style>{GLOBAL_CSS}</style>
-      <div className="logo-float">
-        <LGLogo size={72} showText={false} light />
-      </div>
+      <div className="logo-float"><LGLogo size={72} showText={false} light /></div>
       <div style={{ color: "rgba(255,255,255,.7)", fontSize: 13, fontWeight: 600 }}>{label}</div>
       {action}
     </div>
@@ -69,21 +53,19 @@ function AppShell() {
     }
     clearCache();
     try {
-      await hydrateAll();
+      // Parent workflow fetches its own relationship-scoped data. Avoid hydrating
+      // every application table for a parent before RLS-scoped portal loading.
+      if (current.role !== "parent") await hydrateAll();
       setUser(current);
       setReady(true);
     } catch (error) {
       console.error("Unable to load portal data:", error);
       clearCache();
-      setLoadError(
-        "We could not load your institute data. Please check your connection or contact the administrator.",
-      );
+      setLoadError("We could not load your institute data. Please check your connection or contact the administrator.");
     }
   }, [navigate]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const handleLogout = async () => {
     clearCache();
@@ -91,30 +73,7 @@ function AppShell() {
     navigate({ to: "/", replace: true });
   };
 
-  if (loadError) {
-    return (
-      <Splash
-        label={loadError}
-        action={
-          <button
-            onClick={() => void load()}
-            style={{
-              border: 0,
-              borderRadius: 12,
-              padding: "11px 18px",
-              background: "#fff",
-              color: "#1a1060",
-              fontWeight: 800,
-              cursor: "pointer",
-            }}
-          >
-            Try again
-          </button>
-        }
-      />
-    );
-  }
-
+  if (loadError) return <Splash label={loadError} action={<button onClick={() => void load()} style={{ border: 0, borderRadius: 12, padding: "11px 18px", background: "#fff", color: "#1a1060", fontWeight: 800, cursor: "pointer" }}>Try again</button>} />;
   if (!ready || !user) return <Splash label="Loading your classroom…" />;
   if (user.role === "teacher") return <TeacherApp user={user} onLogout={handleLogout} />;
   if (user.role === "student") return <StudentApp user={user} onLogout={handleLogout} />;
