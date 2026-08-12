@@ -15,7 +15,7 @@ export const uid = () => "u" + Date.now() + Math.random().toString(36).slice(2, 
 
 const hasLS = () => typeof window !== "undefined" && !!window.localStorage;
 const lsK = (t) => "lg_" + t;
-export const lsG = (t) => { if (!hasLS()) return []; try { return JSON.parse(localStorage.getItem(lsK(t) || "[]")); } catch { return []; } };
+export const lsG = (t) => { if (!hasLS()) return []; try { return JSON.parse(localStorage.getItem(lsK(t)) || "[]"); } catch { return []; } };
 export const lsS = (t, v) => { if (!hasLS()) return; try { localStorage.setItem(lsK(t), JSON.stringify(v)); } catch {} };
 export const clearCache = () => { if (!hasLS()) return; for (const t of TABLES) { try { localStorage.removeItem(lsK(t)); } catch {} } };
 export const TABLES = ["students","teachers","users","timetable","batches","attendance","homework","materials","announcements","fees","marks","messages","notifications","examschedule","subjects","material_folders"];
@@ -35,10 +35,17 @@ async function enrichMaterials(rows) {
   return enriched;
 }
 
+const normalizeStudentRead = (row) => ({
+  ...row,
+  parentName: row.parentname ?? row.parentName ?? "",
+  parentPhone: row.parentphone ?? row.parentPhone ?? "",
+});
+
 export const gdb = async (t) => {
   const { data, error } = await supabase.from(t).select("*");
   if (error) { console.error(`Supabase read failed [${t}]:`, error.message); throw error; }
   let rows = Array.isArray(data) ? data : [];
+  if (t === "students") rows = rows.map(normalizeStudentRead);
   if (t === "materials") rows = await enrichMaterials(rows);
   lsS(t, rows);
   return rows;
