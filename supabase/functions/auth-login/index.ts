@@ -1,57 +1,73 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
-const normalize = (value: string) => String(value || "").trim();
-const syntheticEmail = (loginId: string, role: string) => `${({ teacher: "t", student: "s", parent: "p" } as Record<string, string>)[role] || "u"}.${normalize(loginId).toLowerCase().replace(/[^a-z0-9]/g, "")}@learnersguide.in`;
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
+const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
+const normalize=(value:string)=>String(value||"").trim();
+const normalizeKey=(value:string)=>normalize(value).toLowerCase().replace(/[^a-z0-9]/g,"");
+const syntheticEmail=(loginId:string,role:string)=>`${({teacher:"t",student:"s",parent:"p"} as Record<string,string>)[role]||"u"}.${normalizeKey(loginId)}@learnersguide.in`;
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  try {
-    if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-    const url = Deno.env.get("SUPABASE_URL") || "";
-    const anon = Deno.env.get("SUPABASE_ANON_KEY") || "";
-    const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    if (!url || !anon || !service) return json({ error: "Authentication service is not configured" }, 500);
+Deno.serve(async(req)=>{
+  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
+  try{
+    if(req.method!=="POST")return json({error:"Method not allowed"},405);
+    const url=Deno.env.get("SUPABASE_URL")||"";
+    const anon=Deno.env.get("SUPABASE_ANON_KEY")||"";
+    const service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
+    if(!url||!anon||!service)return json({error:"Authentication service is not configured"},500);
+    const body=await req.json();
+    const loginId=normalize(body.loginId);
+    const password=String(body.password||"");
+    const role=normalize(body.role).toLowerCase();
+    if(!loginId||!password)return json({error:"Invalid login ID or password."},400);
+    if(!["student","teacher","parent"].includes(role))return json({error:"Invalid account type."},400);
 
-    const body = await req.json();
-    const loginId = normalize(body.loginId);
-    const password = String(body.password || "");
-    const role = normalize(body.role).toLowerCase();
-    if (!loginId || !password) return json({ error: "Invalid login ID or password." }, 400);
-    if (!["admin", "student", "teacher", "parent"].includes(role)) return json({ error: "Invalid account type." }, 400);
+    const admin=createClient(url,service,{auth:{autoRefreshToken:false,persistSession:false}});
+    let email="";
 
-    const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
-    let email = loginId.toLowerCase();
-
-    if (role !== "admin") {
-      const { data: row, error: rowError } = await admin.from("users").select("auth_id,email,phone,role,ref,status").eq("role", role).eq("phone", loginId).limit(1).maybeSingle();
-      if (rowError) return json({ error: "Unable to verify login. Please try again." }, 503);
-      if (row?.status && ["inactive", "disabled", "suspended", "deleted"].includes(String(row.status).toLowerCase())) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
-      if (row?.email && String(row.email).includes("@")) email = String(row.email).trim().toLowerCase();
-      else if (row?.auth_id) {
-        const { data: authData } = await admin.auth.admin.getUserById(String(row.auth_id));
-        if (authData.user?.email) email = authData.user.email;
-      } else email = syntheticEmail(loginId, role);
+    // Resolve the login identifier against the canonical institute profile first.
+    // Students normally enter SID/roll number, teachers enter TID or phone, and
+    // parents enter the parent phone. The old implementation only checked users.phone,
+    // which made valid student SID logins fail after the security migration.
+    if(role==="student"){
+      const {data:student,error}=await admin.from("students").select("id,sid,parentphone,status").or(`sid.eq.${loginId},id.eq.${loginId}`).limit(1).maybeSingle();
+      if(error)return json({error:"Unable to verify login. Please try again."},503);
+      if(student){
+        if(["inactive","disabled","suspended","deleted"].includes(String(student.status||"").toLowerCase()))return json({error:"This account is inactive. Please contact the institute administrator."},403);
+        const {data:row}=await admin.from("users").select("auth_id,email,phone,status").eq("role","student").eq("ref",student.id).limit(1).maybeSingle();
+        if(row?.status&&["inactive","disabled","suspended","deleted"].includes(String(row.status).toLowerCase()))return json({error:"This account is inactive. Please contact the institute administrator."},403);
+        email=row?.email&&String(row.email).includes("@")?String(row.email).trim().toLowerCase():"";
+        if(!email&&row?.auth_id){const {data:au}=await admin.auth.admin.getUserById(String(row.auth_id));email=au.user?.email||"";}
+      }
+    }else if(role==="teacher"){
+      const {data:teacher,error}=await admin.from("teachers").select("id,tid,phone,status").or(`tid.eq.${loginId},phone.eq.${loginId},id.eq.${loginId}`).limit(1).maybeSingle();
+      if(error)return json({error:"Unable to verify login. Please try again."},503);
+      if(teacher){
+        if(["inactive","disabled","suspended","deleted"].includes(String(teacher.status||"").toLowerCase()))return json({error:"This account is inactive. Please contact the institute administrator."},403);
+        const {data:row}=await admin.from("users").select("auth_id,email,phone,status").eq("role","teacher").eq("ref",teacher.id).limit(1).maybeSingle();
+        if(row?.status&&["inactive","disabled","suspended","deleted"].includes(String(row.status).toLowerCase()))return json({error:"This account is inactive. Please contact the institute administrator."},403);
+        email=row?.email&&String(row.email).includes("@")?String(row.email).trim().toLowerCase():"";
+        if(!email&&row?.auth_id){const {data:au}=await admin.auth.admin.getUserById(String(row.auth_id));email=au.user?.email||"";}
+      }
+    }else{
+      const {data:row,error}=await admin.from("users").select("auth_id,email,phone,ref,status").eq("role","parent").eq("phone",loginId).limit(1).maybeSingle();
+      if(error)return json({error:"Unable to verify login. Please try again."},503);
+      if(row){
+        if(["inactive","disabled","suspended","deleted"].includes(String(row.status||"").toLowerCase()))return json({error:"This account is inactive. Please contact the institute administrator."},403);
+        email=row.email&&String(row.email).includes("@")==true?String(row.email).trim().toLowerCase():"";
+        if(!email&&row.auth_id){const {data:au}=await admin.auth.admin.getUserById(String(row.auth_id));email=au.user?.email||"";}
+      }
     }
 
-    const client = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
-    const { data, error } = await client.auth.signInWithPassword({ email, password });
-    if (error || !data.session || !data.user) return json({ error: "Invalid login ID or password." }, 401);
+    // Preserve compatibility with accounts whose users/profile linkage predates
+    // the current provisioning flow. This never bypasses Supabase Auth; it only
+    // reconstructs the synthetic email used by the original account creation path.
+    if(!email)email=syntheticEmail(loginId,role);
 
-    const appRole = data.user.app_metadata?.role;
-    if (appRole !== role) {
-      await client.auth.signOut();
-      return json({ error: "That account is registered under a different role." }, 403);
-    }
-
-    return json({ session: data.session, user: data.user });
-  } catch (error) {
-    console.error("auth-login:", error);
-    return json({ error: "Unable to sign in right now. Please try again." }, 500);
-  }
+    const client=createClient(url,anon,{auth:{autoRefreshToken:false,persistSession:false}});
+    const {data,error}=await client.auth.signInWithPassword({email,password});
+    if(error||!data.session||!data.user)return json({error:"Invalid login ID or password."},401);
+    const appRole=data.user.app_metadata?.role;
+    if(appRole!==role){await client.auth.signOut();return json({error:"That account is registered under a different role."},403);}
+    return json({session:data.session,user:data.user});
+  }catch(error){console.error("auth-login:",error);return json({error:"Unable to sign in right now. Please try again."},500)}
 });
