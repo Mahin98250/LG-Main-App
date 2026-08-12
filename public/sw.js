@@ -1,4 +1,4 @@
-const CACHE = "learners-guide-v7";
+const CACHE = "learners-guide-v8";
 const APP_SHELL = ["./", "./manifest.webmanifest", "./pwa-icon.svg"];
 const APP_SCOPE = self.registration?.scope || self.location.href;
 
@@ -31,14 +31,15 @@ self.addEventListener("push", (event) => {
     try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: event.data?.text?.() || "" }; }
     const title = payload.title || "Learner's Guide";
     const icon = new URL("pwa-icon.svg", APP_SCOPE).href;
-    await self.registration.showNotification(title, {
+    const options = {
       body: payload.body || "You have a new notification.",
       icon,
       badge: icon,
       tag: payload.notificationId || `lg-${Date.now()}`,
       renotify: true,
       data: { url: appUrl(payload.url || "app"), notificationId: payload.notificationId || null },
-    });
+    };
+    await self.registration.showNotification(title, options);
   })());
 });
 
@@ -65,6 +66,8 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.includes("/rest/v1/") || url.pathname.includes("/auth/v1/") || url.pathname.includes("/functions/v1/")) return;
 
+  // Network-first prevents an old HTML document from continuing to reference a
+  // deleted hashed CSS/JS asset after a new deployment.
   event.respondWith(
     fetch(request)
       .then((response) => {
