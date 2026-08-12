@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lg/supabase";
 
 type Folder = { id: string; name: string; parent_id: string | null; created_at: string };
-type Material = { id: string; title?: string; name?: string; folder_id: string | null; storage_path?: string | null; file_size?: number | null; mime_type?: string | null; created_at: string };
+type Batch = { id: string; name: string; cls: string | null; sec: string | null; status: string | null };
+type Material = { id: string; title?: string; name?: string; folder_id: string | null; batch_id?: string | null; storage_path?: string | null; file_size?: number | null; mime_type?: string | null; created_at: string };
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const ACCEPT = ".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg";
@@ -17,6 +18,8 @@ function bytes(n: number | null | undefined) {
 export function MaterialsDrive() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [files, setFiles] = useState<Material[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState("");
   const [current, setCurrent] = useState<Folder | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -28,12 +31,14 @@ export function MaterialsDrive() {
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
-    const [f, m] = await Promise.all([
+    const [f, m, b] = await Promise.all([
       supabase.from("material_folders").select("id,name,parent_id,created_at").order("name"),
-      supabase.from("materials").select("id,title,name,folder_id,storage_path,file_size,mime_type,created_at").order("created_at", { ascending: false }),
+      supabase.from("materials").select("id,title,name,folder_id,batch_id,storage_path,file_size,mime_type,created_at").order("created_at", { ascending: false }),
+      supabase.from("batches").select("id,name,cls,sec,status").order("name"),
     ]);
     if (f.error) setError(f.error.message); else setFolders(f.data || []);
     if (m.error) setError(m.error.message); else setFiles(m.data || []);
+    if (b.error) setError(b.error.message); else setBatches((b.data || []).filter(x => !x.status || x.status === "active"));
     setLoading(false);
   }, []);
 
@@ -94,13 +99,14 @@ export function MaterialsDrive() {
 
   async function upload(file: File) {
     if (file.size > MAX_FILE_SIZE) { setError("File is larger than the 50 MB limit."); return; }
+    if (!selectedBatchId) { setError("Select a batch before uploading so the correct students and parents receive the notification."); return; }
     const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
     const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${crypto.randomUUID()}.${ext}`;
     setBusy(true); setError("");
     const { error: up } = await supabase.storage.from("materials").upload(path, file, { upsert: false, contentType: file.type || undefined });
     if (up) { setError(up.message); setBusy(false); return; }
-    const { error: ins } = await supabase.from("materials").insert({ title: safe, name: safe, folder_id: current?.id ?? null, storage_path: path, file_size: file.size, mime_type: file.type || null });
+    const { error: ins } = await supabase.from("materials").insert({ title: safe, name: safe, folder_id: current?.id ?? null, batch_id: selectedBatchId, storage_path: path, file_size: file.size, mime_type: file.type || null });
     if (ins) { await supabase.storage.from("materials").remove([path]); setError(ins.message); } else await load();
     setBusy(false);
   }
@@ -127,7 +133,7 @@ export function MaterialsDrive() {
   return <div className="drive-wrap" style={{ minHeight: "100%", padding: 28, fontFamily: "Poppins,system-ui,sans-serif", color: "#0F1B3D" }}>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
       <div><h2 style={{ margin: 0 }}>📚 Study Materials</h2><p style={{ margin: "5px 0 0", color: "#64748B", fontSize: 13 }}>Organize notes, PDFs and presentations like Google Drive. Maximum file size: 50 MB.</p></div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button disabled={busy} onClick={() => setNewFolder(true)} style={btn}>📁 New Folder</button><label style={{ ...btn, cursor: busy ? "wait" : "pointer", opacity: busy ? .6 : 1 }}>⬆ Upload<input hidden disabled={busy} type="file" accept={ACCEPT} onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.currentTarget.value = ""; }} /></label><button disabled={busy} onClick={() => void load()} style={btn}>↻</button></div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><select value={selectedBatchId} onChange={e => setSelectedBatchId(e.target.value)} disabled={busy} aria-label="Target batch" style={batchSelect}><option value="">Select batch</option>{batches.map(b => <option key={b.id} value={b.id}>{b.name}{b.cls || b.sec ? ` — ${[b.cls, b.sec].filter(Boolean).join("-")}` : ""}</option>)}</select><button disabled={busy} onClick={() => setNewFolder(true)} style={btn}>📁 New Folder</button><label style={{ ...btn, cursor: busy ? "wait" : "pointer", opacity: busy ? .6 : 1 }}>⬆ Upload<input hidden disabled={busy} type="file" accept={ACCEPT} onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.currentTarget.value = ""; }} /></label><button disabled={busy} onClick={() => void load()} style={btn}>↻</button></div>
     </div>
     <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap", marginBottom: 14, fontSize: 13 }}><button onClick={() => setCurrent(null)} style={crumb}>My Drive</button>{breadcrumbs.map(f => <span key={f.id}> / <button onClick={() => setCurrent(f)} style={crumb}>{f.name}</button></span>)}</div>
     {error && <div style={{ background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA", padding: 12, borderRadius: 12, marginBottom: 14 }}>{error}</div>}
@@ -141,6 +147,7 @@ export function MaterialsDrive() {
 }
 
 const btn: React.CSSProperties = { border: 0, borderRadius: 11, padding: "10px 14px", background: "#4361EE", color: "#fff", fontWeight: 750 };
+const batchSelect: React.CSSProperties = { border: "1px solid #CBD5E1", borderRadius: 11, padding: "10px 12px", background: "#fff", color: "#0F1B3D", fontWeight: 650, minWidth: 170 };
 const crumb: React.CSSProperties = { border: 0, background: "transparent", color: "#4361EE", fontWeight: 700, cursor: "pointer", padding: 2 };
 const more: React.CSSProperties = { border: 0, background: "transparent", cursor: "pointer", padding: 7, borderRadius: 8 };
 const icon: React.CSSProperties = { border: 0, background: "transparent", cursor: "pointer", fontSize: 30, padding: 0 };
