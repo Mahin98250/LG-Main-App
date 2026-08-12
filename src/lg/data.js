@@ -15,7 +15,7 @@ export const uid = () => "u" + Date.now() + Math.random().toString(36).slice(2, 
 
 const hasLS = () => typeof window !== "undefined" && !!window.localStorage;
 const lsK = (t) => "lg_" + t;
-export const lsG = (t) => { if (!hasLS()) return []; try { return JSON.parse(localStorage.getItem(lsK(t) || "[]")); } catch { return []; } };
+export const lsG = (t) => { if (!hasLS()) return []; try { return JSON.parse(localStorage.getItem(lsK(t)) || "[]"); } catch { return []; } };
 export const lsS = (t, v) => { if (!hasLS()) return; try { localStorage.setItem(lsK(t), JSON.stringify(v)); } catch {} };
 export const clearCache = () => { if (!hasLS()) return; for (const t of TABLES) { try { localStorage.removeItem(lsK(t)); } catch {} } };
 export const TABLES = ["students","teachers","users","timetable","batches","attendance","homework","materials","announcements","fees","marks","messages","notifications","examschedule","subjects","material_folders"];
@@ -24,26 +24,39 @@ async function enrichMaterials(rows) {
   const clean = Array.isArray(rows) ? rows : [];
   if (!clean.length) return clean;
 
-  // Study materials are stored in a private Supabase Storage bucket. Students and
-  // teachers must receive short-lived download URLs rather than a public bucket URL.
-  // The existing student UI already understands pdfData/pdfName, so enriching the
-  // database rows here keeps the UI simple while making the source of truth Supabase.
-  const enriched = await Promise.all(clean.map(async (row) => {
-    if (!row.storage_path) return { ...row, pdfData: null, pdfName: row.name || row.title || "material" };
-    const { data, error } = await supabase.storage
-      .from("materials")
-      .createSignedUrl(row.storage_path, 3600, { download: row.name || row.title || "material" });
-    return {
+  // The database is the source of truth. Private Storage files are exposed to the
+  // signed-in learner through one-hour signed download URLs. Supabase documents
+  // signed URLs as the safe approach for private buckets.
+  const { data: students } = await supabase.from("students").select("cls,sec");
+  const classPairs = [...new Set((students || []).map((s) => `${s.cls || ""}|||${s.sec || ""}`))]
+    .map((x) => { const [cls, sec] = x.split("|||"); return { cls, sec }; })
+    .filter((x) => x.cls && x.sec);
+
+  const enriched = [];
+  for (const row of clean) {
+    let pdfData = null;
+    if (row.storage_path) {
+      const { data, error } = await supabase.storage
+        .from("materials")
+        .createSignedUrl(row.storage_path, 3600, { download: row.name || row.title || "material" });
+      if (!error) pdfData = data?.signedUrl || null;
+    }
+    const base = {
       ...row,
-      pdfData: error ? null : data?.signedUrl || null,
+      pdfData,
       pdfName: row.name || row.title || "material",
-      // Legacy student cards filter by class/section. Admin-created Drive materials
-      // are institute-wide unless a future targeting field is added, so null means
-      // visible to every class in the student experience.
-      cls: row.cls ?? null,
-      sec: row.sec ?? null,
     };
-  }));
+
+    // The current Admin Drive is institute-wide (folders are not class-targeted).
+    // The legacy learner card filters by class/section, so make a lightweight view
+    // for each existing class/section. These are only client-cache projections; the
+    // canonical record remains the single row in Supabase.
+    if (!row.cls && !row.sec && classPairs.length) {
+      for (const pair of classPairs) enriched.push({ ...base, cls: pair.cls, sec: pair.sec });
+    } else {
+      enriched.push(base);
+    }
+  }
   return enriched;
 }
 
@@ -86,4 +99,19 @@ export const delR = async (t, id) => {
   if (!data) throw new Error("No row was deleted. The record may not exist or RLS may have blocked access.");
   lsS(t, lsG(t).filter((r) => r.id !== id)); return data;
 };
+
+// Compatibility helper for the older teacher UI. It used to update only local
+// storage; now it diffs the requested list against the database cache and performs
+// real Supabase deletes, so teacher actions persist after refresh/login.
+export const sdb = async (t, nextRows) => {
+  const previous = lsG(t);
+  const next = Array.isArray(nextRows) ? nextRows : [];
+  const nextIds = new Set(next.map((r) => r?.id));
+  for (const row of previous) {
+    if (row?.id && !nextIds.has(row.id)) await delR(t, row.id);
+  }
+  lsS(t, next);
+  return next;
+};
+
 export const hydrateAll = async () => { await Promise.all(TABLES.map((t) => gdb(t))); };
