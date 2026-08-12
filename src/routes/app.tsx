@@ -6,6 +6,7 @@ import { GLOBAL_CSS, LGLogo } from "@/lg/ui";
 import { TeacherApp } from "@/lg/teacherWorkflows";
 import { StudentApp } from "@/lg/student";
 import { ParentApp } from "@/lg/parentWorkflows";
+import { PushNotificationPrompt } from "@/lg/pushNotifications";
 
 const title = "My Dashboard — Learner's Guide";
 const description = "Your Learner's Guide dashboard: classes, attendance, homework, marks and fees.";
@@ -91,8 +92,8 @@ function AppShell() {
 
   if (loadError) return <Splash label={loadError} action={<button onClick={() => void load()} style={{ border: 0, borderRadius: 12, padding: "11px 18px", background: "#fff", color: "#1a1060", fontWeight: 800, cursor: "pointer" }}>Try again</button>} />;
   if (!ready || !user) return <Splash label="Loading your classroom…" />;
-  if (user.role === "teacher") return <TeacherApp user={user} onLogout={handleLogout} />;
-  if (user.role === "student") return <StudentApp user={user} onLogout={handleLogout} />;
-  if (user.role === "parent") return <ParentApp user={user} onLogout={handleLogout} />;
+  if (user.role === "teacher") return <><TeacherApp user={user} onLogout={handleLogout} /><PushNotificationPrompt user={user} /></>;
+  if (user.role === "student") return <><StudentApp user={user} onLogout={handleLogout} /><PushNotificationPrompt user={user} /></>;
+  if (user.role === "parent") return <><ParentApp user={user} onLogout={handleLogout} /><PushNotificationPrompt user={user} /></>;
   return <Splash label="Unknown role. Please sign in again." />;
 }
