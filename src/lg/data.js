@@ -15,6 +15,16 @@ export const lsS=(t,v)=>{if(!hasLS())return;try{localStorage.setItem(lsK(t),JSON
 export const TABLES=["students","teachers","users","timetable","timetable_entries","batches","batch_students","batch_teachers","attendance","homework","materials","announcements","fees","marks","messages","notifications","examschedule","subjects","material_folders","academic_years","rooms"];
 export const clearCache=()=>{if(!hasLS())return;for(const t of TABLES){try{localStorage.removeItem(lsK(t))}catch{}}};
 
+// Only hydrate tables that the signed-in portal actually needs. The old
+// Promise.all(TABLES.map(...)) pattern queried admin-only/irrelevant tables
+// for every role and turned harmless RLS denials into a wall of 401 errors.
+const PORTAL_TABLES={
+  teacher:["teachers","students","batches","batch_students","batch_teachers","attendance","homework","materials","announcements","fees","marks","messages","notifications","timetable_entries","subjects","material_folders","examschedule","rooms"],
+  student:["students","teachers","batches","batch_students","attendance","homework","materials","announcements","fees","marks","messages","notifications","timetable_entries","subjects","material_folders","examschedule"],
+  parent:["students","teachers","batches","batch_students","attendance","homework","materials","announcements","fees","marks","messages","notifications","timetable_entries","subjects","material_folders","examschedule"],
+  admin:TABLES,
+};
+
 async function enrichMaterials(rows){const clean=Array.isArray(rows)?rows:[];if(!clean.length)return clean;const enriched=[];for(const row of clean){let pdfData=null;if(row.storage_path){const{data,error}=await supabase.storage.from("materials").createSignedUrl(row.storage_path,3600,{download:row.name||row.title||"material"});if(!error)pdfData=data?.signedUrl||null}enriched.push({...row,pdfData,pdfName:row.name||row.title||"material"})}return enriched}
 const normalizeStudentRead=row=>({...row,parentName:row.parentname??row.parentName??"",parentPhone:row.parentphone??row.parentPhone??""});
 
@@ -52,9 +62,6 @@ async function scopeMaterials(rows){
  const user=authData?.user;
  const role=String(user?.app_metadata?.role||"");
  if(!user||!role||role==="admin")return clean;
- // RLS is the source of truth for student/parent/teacher visibility. Do not
- // apply a second class/section filter here because batches can share the same
- // class and section while representing different groups.
  return clean;
 }
 
@@ -67,9 +74,6 @@ async function loadTimetable(){
  const role=String(user?.app_metadata?.role||"");
  const ref=user?.app_metadata?.ref?String(user.app_metadata.ref):"";
  if((role==="student"||role==="parent")&&ref){
-   // RLS already enforces the relationship. Fetch every active membership so
-   // a future multi-batch student/parent account is not silently limited to
-   // the first batch returned by PostgREST.
    const{data:members,error:membershipError}=await supabase.from("batch_students").select("batch_id").eq("student_id",ref).eq("status","active");
    if(membershipError)throw membershipError;
    const batchIds=new Set((members||[]).map(m=>String(m.batch_id)).filter(Boolean));
@@ -99,6 +103,19 @@ export const gdb=async t=>{
  if(t==="materials")rows=await enrichMaterials(rows);
  lsS(t,rows);return rows;
 };
+
+export const hydrateForRole=async(role)=>{
+ const tables=PORTAL_TABLES[String(role||"")]||[];
+ if(!tables.length)return;
+ const results=await Promise.allSettled(tables.map(t=>gdb(t)));
+ const denied=results.filter(r=>r.status==="rejected");
+ if(denied.length){
+   // Keep the portal usable when an optional table is temporarily unavailable;
+   // the workflow can retry that table when the feature is opened.
+   console.warn(`Portal preload skipped ${denied.length} unavailable dataset(s).`);
+ }
+};
+
 const WRITE_COLUMNS={students:new Set(["id","name","sid","cls","sec","parentname","parentphone","parent","enroll","status"]),teachers:new Set(["id","name","tid","subject","phone","classes","status"]),users:new Set(["id","name","phone","email","role","ref","status","auth_id","created_at"])};
 const STUDENT_FIELD_ALIASES={parentName:"parentname",parentPhone:"parentphone"};
 const sanitizeWrite=(table,payload)=>{const allowed=WRITE_COLUMNS[table];if(!allowed)return payload;const normalized={...payload};if(table==="students"){for(const[from,to]of Object.entries(STUDENT_FIELD_ALIASES)){if(normalized[from]!==undefined&&normalized[to]===undefined)normalized[to]=normalized[from];delete normalized[from]}}return Object.fromEntries(Object.entries(normalized).filter(([key])=>allowed.has(key)))};
