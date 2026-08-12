@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getCurrentUser, signOut } from "@/lg/auth";
 import { clearCache, hydrateAll } from "@/lg/data";
 import { GLOBAL_CSS, LGLogo } from "@/lg/ui";
-import { TeacherApp } from "@/lg/teacher";
+import { TeacherApp } from "@/lg/teacherWorkflows";
 import { StudentApp } from "@/lg/student";
 import { ParentApp } from "@/lg/parent";
 
