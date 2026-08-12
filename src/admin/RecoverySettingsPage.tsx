@@ -33,7 +33,7 @@ export default function RecoverySettingsPage() {
       const users = (await gdb("users")) as Row[];
       const accountRows = users.filter((row) => ["student", "parent", "teacher"].includes(String(row.role)));
       setRows(accountRows);
-      setDrafts(Object.fromEntries(accountRows.map((row) => [String(row.id), String(row.email || "").includes("@learnersguide.in") ? "" : String(row.email || "")]));
+      setDrafts(Object.fromEntries(accountRows.map((row) => [String(row.id), String(row.email || "").includes("@learnersguide.in") ? "" : String(row.email || "")] )));
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load accounts."); }
     finally { setLoading(false); }
   }, []);
