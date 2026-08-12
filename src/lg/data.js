@@ -12,6 +12,21 @@ export const ROLES = [
 export const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const today = () => DAYS[new Date().getDay()];
 export const uid = () => "u" + Date.now() + Math.random().toString(36).slice(2, 6);
+
+// Canonical institute subject catalog. Keep this as the single source of truth
+// for admin, teacher, homework, materials, marks and timetable subject choices.
+export const SUBJECTS_BY_CLASS = {
+  "9": ["Science", "English", "Maths", "Social Studies"],
+  "10": ["Science", "English", "Maths", "Social Studies"],
+  "11": ["Accountancy", "Business Studies", "Economics", "Applied Mathematics", "Informatics Practices", "Entrepreneurship", "Physical Education"],
+  "12": ["Accountancy", "Business Studies", "Economics", "Applied Mathematics", "Informatics Practices", "Entrepreneurship", "Physical Education"],
+};
+export const ALL_SUBJECTS = [...new Set(Object.values(SUBJECTS_BY_CLASS).flat())];
+export const subjectsForClasses = (classes = []) => {
+  const selected = classes.map(String).flatMap((cls) => SUBJECTS_BY_CLASS[cls] || []);
+  return [...new Set(selected)];
+};
+
 const hasLS = () => typeof window !== "undefined" && !!window.localStorage;
 const lsK = (t) => "lg_" + t;
 export const lsG = (t) => { if (!hasLS()) return []; try { return JSON.parse(localStorage.getItem(lsK(t)) || "[]"); } catch { return []; } };
