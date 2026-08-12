@@ -12,23 +12,42 @@ const hasLS=()=>typeof window!=="undefined"&&!!window.localStorage;
 const lsK=t=>"lg_"+t;
 export const lsG=t=>{if(!hasLS())return[];try{return JSON.parse(localStorage.getItem(lsK(t))||"[]")}catch{return[]}};
 export const lsS=(t,v)=>{if(!hasLS())return;try{localStorage.setItem(lsK(t),JSON.stringify(v))}catch{}};
-export const TABLES=["students","teachers","users","timetable","timetable_entries","batches","batch_students","attendance","homework","materials","announcements","fees","marks","messages","notifications","examschedule","subjects","material_folders"];
+export const TABLES=["students","teachers","users","timetable","timetable_entries","batches","batch_students","batch_teachers","attendance","homework","materials","announcements","fees","marks","messages","notifications","examschedule","subjects","material_folders","academic_years","rooms"];
 export const clearCache=()=>{if(!hasLS())return;for(const t of TABLES){try{localStorage.removeItem(lsK(t))}catch{}}};
 
 async function enrichMaterials(rows){const clean=Array.isArray(rows)?rows:[];if(!clean.length)return clean;const enriched=[];for(const row of clean){let pdfData=null;if(row.storage_path){const{data,error}=await supabase.storage.from("materials").createSignedUrl(row.storage_path,3600,{download:row.name||row.title||"material"});if(!error)pdfData=data?.signedUrl||null}enriched.push({...row,pdfData,pdfName:row.name||row.title||"material"})}return enriched}
 const normalizeStudentRead=row=>({...row,parentName:row.parentname??row.parentName??"",parentPhone:row.parentphone??row.parentPhone??""});
+
+async function enrichStudentsWithBatch(rows){
+ const clean=Array.isArray(rows)?rows:[];
+ if(!clean.length)return clean.map(normalizeStudentRead);
+ const studentIds=clean.map(s=>s?.id).filter(Boolean).map(String);
+ const{data:members,error}=await supabase.from("batch_students").select("batch_id,student_id,status").in("student_id",studentIds).eq("status","active");
+ if(error){console.warn("Unable to load student batch memberships:",error.message);return clean.map(normalizeStudentRead)}
+ const activeByStudent=new Map((members||[]).map(m=>[String(m.student_id),m]));
+ const batchIds=[...new Set((members||[]).map(m=>m.batch_id).filter(Boolean).map(String))];
+ let batches=[];
+ if(batchIds.length){const{data,error:batchError}=await supabase.from("batches").select("id,name,cls,sec,status").in("id",batchIds);if(!batchError)batches=data||[];else console.warn("Unable to load student batch details:",batchError.message)}
+ const byBatch=new Map(batches.map(b=>[String(b.id),b]));
+ return clean.map(raw=>{const row=normalizeStudentRead(raw);const membership=activeByStudent.get(String(row.id));const batch=membership?byBatch.get(String(membership.batch_id)):null;return{...row,batch_id:membership?.batch_id??row.batch_id??null,batchId:membership?.batch_id??row.batchId??null,batchName:batch?.name??row.batchName??"",batchClass:batch?.cls??row.batchClass??row.cls??"",batchSection:batch?.sec??row.batchSection??row.sec??""}});
+}
+
 async function scopeMaterials(rows){const clean=Array.isArray(rows)?rows:[];const{data:authData}=await supabase.auth.getUser();const user=authData?.user;const role=String(user?.app_metadata?.role||"");const ref=user?.app_metadata?.ref?String(user.app_metadata.ref):"";if(!user||!role||role==="admin")return clean;if(role==="teacher")return clean.filter(m=>!m.tid||String(m.tid)===ref);if(role==="student"||role==="parent"){if(!ref)return[];const{data:student,error}=await supabase.from("students").select("cls,sec").eq("id",ref).maybeSingle();if(error||!student)return[];return clean.filter(m=>(m.cls==null||String(m.cls)===String(student.cls))&&(m.sec==null||String(m.sec)===String(student.sec)))}return[]}
 
 async function loadTimetable(){
- const{data:entries,error}=await supabase.from("timetable_entries").select("*");
+ const{data:entries,error}=await supabase.from("timetable_entries").select("*").eq("status","active");
  if(error){console.error("Supabase read failed [timetable_entries]:",error.message);throw error}
  const rows=Array.isArray(entries)?entries:[];
  if(!rows.length){lsS("timetable",[]);return[]}
- const batchIds=[...new Set(rows.map(r=>r.batch_id).filter(Boolean))];
+ const batchIds=[...new Set(rows.map(r=>r.batch_id).filter(Boolean).map(String))];
  let batches=[];
- if(batchIds.length){const{data,error:batchError}=await supabase.from("batches").select("id,cls,sec,name").in("id",batchIds);if(batchError)throw batchError;batches=batchError?[]:(batchError?[]:data||[])}
+ if(batchIds.length){const{data,error:batchError}=await supabase.from("batches").select("id,cls,sec,name,status").in("id",batchIds);if(batchError)throw batchError;batches=data||[]}
+ const teacherIds=[...new Set(rows.map(r=>r.teacher_id).filter(Boolean).map(String))];
+ let teachers=[];
+ if(teacherIds.length){const{data,error:teacherError}=await supabase.from("teachers").select("id,name,tid").in("id",teacherIds);if(!teacherError)teachers=data||[]}
  const byBatch=new Map(batches.map(b=>[String(b.id),b]));
- const mapped=rows.map(r=>{const b=byBatch.get(String(r.batch_id));const day=DAYS[Math.max(0,Math.min(6,Number(r.day_of_week||1)-1))];return{...r,cls:b?.cls??"",sec:b?.sec??"",batchName:b?.name??"",subject:r.subject_name,day,slot:`${String(r.start_time||"").slice(0,5)}–${String(r.end_time||"").slice(0,5)}`}});
+ const byTeacher=new Map(teachers.map(t=>[String(t.id),t]));
+ const mapped=rows.map(r=>{const b=byBatch.get(String(r.batch_id));const teacher=byTeacher.get(String(r.teacher_id));const day=DAYS[Math.max(0,Math.min(6,Number(r.day_of_week||1)-1))];return{...r,cls:b?.cls??"",sec:b?.sec??"",batchName:b?.name??"",subject:r.subject_name,teacherName:teacher?.name??"",teacherTid:teacher?.tid??"",day,slot:`${String(r.start_time||"").slice(0,5)}–${String(r.end_time||"").slice(0,5)}`}});
  lsS("timetable",mapped);return mapped;
 }
 
@@ -37,7 +56,7 @@ export const gdb=async t=>{
  const{data,error}=await supabase.from(t).select("*");
  if(error){console.error(`Supabase read failed [${t}]:`,error.message);throw error}
  let rows=Array.isArray(data)?data:[];
- if(t==="students")rows=rows.map(normalizeStudentRead);
+ if(t==="students")rows=await enrichStudentsWithBatch(rows);
  if(t==="materials")rows=await scopeMaterials(rows);
  if(t==="materials")rows=await enrichMaterials(rows);
  lsS(t,rows);return rows;
