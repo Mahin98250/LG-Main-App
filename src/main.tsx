@@ -22,6 +22,18 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
   });
 }
 
+// Downloads must stay on the current app route. Some browsers otherwise honor
+// target="_blank" on data/blob download links and open a new document/tab,
+// which makes returning from a material download look like a navigation to
+// the Student home screen. Normalize all in-app download links before the
+// browser performs the default action.
+window.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const link = target.closest("a[download]");
+  if (link instanceof HTMLAnchorElement) link.target = "_self";
+}, true);
+
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <RouterProvider router={router} />
