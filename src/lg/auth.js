@@ -26,17 +26,18 @@ export const authEmail = (loginId, role) => {
 const profileConfig = {
   student: { table: "students", statusField: "status", loginField: "sid" },
   teacher: { table: "teachers", statusField: "status", loginField: "phone" },
+  // A parent account is linked to the student's profile through app_metadata.ref.
+  // The parent's login ID is resolved from students.parentphone.
+  parent: { table: "students", statusField: "status", loginField: "parentphone" },
 };
 
 export const resolveRef = async (role, loginId) => {
   const raw = String(loginId || "").trim();
   if (!raw) return null;
   const config = profileConfig[role];
-  if (!config && role !== "parent") return null;
+  if (!config) return null;
 
-  const table = config?.table || "students";
-  const field = config?.loginField || "parentphone";
-  const { data, error } = await supabase.from(table).select("id").eq(field, raw).limit(1).maybeSingle();
+  const { data, error } = await supabase.from(config.table).select("id").eq(config.loginField, raw).limit(1).maybeSingle();
   if (error) console.warn(`Could not resolve ${role} reference:`, error.message);
   return data?.id || null;
 };
