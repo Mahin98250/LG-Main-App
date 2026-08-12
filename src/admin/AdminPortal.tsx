@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getCurrentUser, signOut } from "@/lg/auth";
 import { AdminWithDrive } from "./AdminWithDrive";
-import { AdminLogin } from "./ReferenceAdminPanel";
+import AdminLogin from "./auth/AdminLogin";
 
 type AdminUser = {
   id: string;
@@ -13,21 +13,24 @@ type AdminUser = {
 
 /**
  * Single source of truth for the admin experience.
- *
- * The old AdminPortal had a second, incomplete navigation implementation which
- * could show placeholder dashboard content for several real admin sections.
- * Keep this compatibility entry point, but delegate to the same full admin
- * panel used by /admin so every entry point has identical functionality.
+ * The login gate must use the Supabase Auth-backed admin login so the browser
+ * session used by the admin UI is the same session used by RLS-protected writes.
  */
 export default function AdminPortal() {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [checking, setChecking] = useState(true);
 
+  const refreshUser = useCallback(async () => {
+    const current = await getCurrentUser();
+    setUser(current?.role === "admin" ? current : null);
+    setChecking(false);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     getCurrentUser().then((current) => {
       if (!mounted) return;
-      if (current?.role === "admin") setUser(current);
+      setUser(current?.role === "admin" ? current : null);
       setChecking(false);
     });
     return () => {
@@ -57,7 +60,7 @@ export default function AdminPortal() {
   }
 
   if (!user) {
-    return <AdminLogin onSuccess={(admin) => setUser(admin)} />;
+    return <AdminLogin onAuthenticated={() => void refreshUser()} />;
   }
 
   return <AdminWithDrive user={user} onLogout={handleLogout} />;
