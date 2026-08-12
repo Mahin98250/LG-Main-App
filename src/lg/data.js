@@ -37,7 +37,21 @@ async function scopeMaterials(rows){const clean=Array.isArray(rows)?rows:[];cons
 async function loadTimetable(){
  const{data:entries,error}=await supabase.from("timetable_entries").select("*").eq("status","active");
  if(error){console.error("Supabase read failed [timetable_entries]:",error.message);throw error}
- const rows=Array.isArray(entries)?entries:[];
+ let rows=Array.isArray(entries)?entries:[];
+ const{data:authData}=await supabase.auth.getUser();
+ const user=authData?.user;
+ const role=String(user?.app_metadata?.role||"");
+ const ref=user?.app_metadata?.ref?String(user.app_metadata.ref):"";
+ // Student/parent timetable visibility is determined by the student's active batch,
+ // not by class/section. This prevents Batch 10-A from seeing Batch 10-B classes.
+ if((role==="student"||role==="parent")&&ref){
+   const{data:membership,error:membershipError}=await supabase.from("batch_students").select("batch_id").eq("student_id",ref).eq("status","active").limit(1).maybeSingle();
+   if(membershipError)throw membershipError;
+   const batchId=membership?.batch_id?String(membership.batch_id):"";
+   rows=batchId?rows.filter(r=>String(r.batch_id)===batchId):[];
+ }
+ // Teachers only receive their own scheduled entries. Admins receive everything.
+ if(role==="teacher"&&ref)rows=rows.filter(r=>String(r.teacher_id)===ref);
  if(!rows.length){lsS("timetable",[]);return[]}
  const batchIds=[...new Set(rows.map(r=>r.batch_id).filter(Boolean).map(String))];
  let batches=[];
@@ -47,7 +61,7 @@ async function loadTimetable(){
  if(teacherIds.length){const{data,error:teacherError}=await supabase.from("teachers").select("id,name,tid").in("id",teacherIds);if(!teacherError)teachers=data||[]}
  const byBatch=new Map(batches.map(b=>[String(b.id),b]));
  const byTeacher=new Map(teachers.map(t=>[String(t.id),t]));
- const mapped=rows.map(r=>{const b=byBatch.get(String(r.batch_id));const teacher=byTeacher.get(String(r.teacher_id));const day=DAYS[Math.max(0,Math.min(6,Number(r.day_of_week||1)-1))];return{...r,cls:b?.cls??"",sec:b?.sec??"",batchName:b?.name??"",subject:r.subject_name,teacherName:teacher?.name??"",teacherTid:teacher?.tid??"",day,slot:`${String(r.start_time||"").slice(0,5)}–${String(r.end_time||"").slice(0,5)}`}});
+ const mapped=rows.map(r=>{const b=byBatch.get(String(r.batch_id));const teacher=byTeacher.get(String(r.teacher_id));const day=DAYS[Math.max(0,Math.min(6,Number(r.day_of_week||1)))];return{...r,tid:r.teacher_id,teacher_id:r.teacher_id,batchId:r.batch_id,cls:b?.cls??"",sec:b?.sec??"",batchName:b?.name??"",subject:r.subject_name,teacherName:teacher?.name??"",teacherTid:teacher?.tid??"",day,slot:`${String(r.start_time||"").slice(0,5)}–${String(r.end_time||"").slice(0,5)}`}});
  lsS("timetable",mapped);return mapped;
 }
 
