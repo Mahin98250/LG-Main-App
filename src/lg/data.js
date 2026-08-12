@@ -29,9 +29,6 @@ async function enrichStudentsWithBatch(rows){
  const role=String(authUser?.app_metadata?.role||"");
  const ref=authUser?.app_metadata?.ref?String(authUser.app_metadata.ref):"";
  let allowedBatchIds=null;
- // Teacher data is scoped by actual timetable batch assignments. This is the
- // authoritative relationship for multi-batch institutes; class/section alone
- // must never grant a teacher access to another batch.
  if(role==="teacher"&&ref){
    const{data:teacherSlots,error:slotError}=await supabase.from("timetable_entries").select("batch_id").eq("teacher_id",ref).eq("status","active");
    if(slotError){console.warn("Unable to load teacher timetable assignments:",slotError.message);allowedBatchIds=new Set()}
@@ -49,7 +46,17 @@ async function enrichStudentsWithBatch(rows){
  return clean.map(raw=>{const row=normalizeStudentRead(raw);const membership=activeByStudent.get(String(row.id));const batch=membership?byBatch.get(String(membership.batch_id)):null;return{...row,batch_id:membership?.batch_id??null,batchId:membership?.batch_id??null,batchName:batch?.name??"",batchClass:batch?.cls??row.cls??"",batchSection:batch?.sec??row.sec??""}}).filter(row=>role!=="teacher"||Boolean(row.batch_id));
 }
 
-async function scopeMaterials(rows){const clean=Array.isArray(rows)?rows:[];const{data:authData}=await supabase.auth.getUser();const user=authData?.user;const role=String(user?.app_metadata?.role||"");const ref=user?.app_metadata?.ref?String(user.app_metadata.ref):"";if(!user||!role||role==="admin")return clean;if(role==="teacher")return clean.filter(m=>!m.tid||String(m.tid)===ref);if(role==="student"||role==="parent"){if(!ref)return[];const{data:student,error}=await supabase.from("students").select("cls,sec").eq("id",ref).maybeSingle();if(error||!student)return[];return clean.filter(m=>(m.cls==null||String(m.cls)===String(student.cls))&&(m.sec==null||String(m.sec)===String(student.sec)))}return[]}
+async function scopeMaterials(rows){
+ const clean=Array.isArray(rows)?rows:[];
+ const{data:authData}=await supabase.auth.getUser();
+ const user=authData?.user;
+ const role=String(user?.app_metadata?.role||"");
+ if(!user||!role||role==="admin")return clean;
+ // RLS is the source of truth for student/parent/teacher visibility. Do not
+ // apply a second class/section filter here because batches can share the same
+ // class and section while representing different groups.
+ return clean;
+}
 
 async function loadTimetable(){
  const{data:entries,error}=await supabase.from("timetable_entries").select("*").eq("status","active");
@@ -60,10 +67,13 @@ async function loadTimetable(){
  const role=String(user?.app_metadata?.role||"");
  const ref=user?.app_metadata?.ref?String(user.app_metadata.ref):"";
  if((role==="student"||role==="parent")&&ref){
-   const{data:membership,error:membershipError}=await supabase.from("batch_students").select("batch_id").eq("student_id",ref).eq("status","active").limit(1).maybeSingle();
+   // RLS already enforces the relationship. Fetch every active membership so
+   // a future multi-batch student/parent account is not silently limited to
+   // the first batch returned by PostgREST.
+   const{data:members,error:membershipError}=await supabase.from("batch_students").select("batch_id").eq("student_id",ref).eq("status","active");
    if(membershipError)throw membershipError;
-   const batchId=membership?.batch_id?String(membership.batch_id):"";
-   rows=batchId?rows.filter(r=>String(r.batch_id)===batchId):[];
+   const batchIds=new Set((members||[]).map(m=>String(m.batch_id)).filter(Boolean));
+   rows=batchIds.size?rows.filter(r=>batchIds.has(String(r.batch_id))):[];
  }
  if(role==="teacher"&&ref)rows=rows.filter(r=>String(r.teacher_id)===ref);
  if(!rows.length){lsS("timetable",[]);return[]}
