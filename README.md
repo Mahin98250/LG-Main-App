@@ -1,33 +1,33 @@
 # Learner's Guide
 
-**Student Institute Management System** for admins, teachers, students, and parents, built with React, TypeScript/JavaScript, Supabase, and Vite.
+> **Student Institute Management System** for administrators, teachers, students, and parents.
 
-## What this project does
+Learner's Guide is a role-based institute management platform built for everyday academic operations: student and teacher management, batches and timetables, lecture-based attendance, homework, study materials, fees, announcements, account management, and parent/student portals.
 
-Learner's Guide provides a central platform for managing day-to-day institute operations and giving each role a focused portal.
+## ✨ Core capabilities
 
 ### Admin
 
-- Dashboard and institute overview
-- Student management
-- Teacher management
-- Batches and timetable management
-- Lecture-based teacher attendance
-- Homework management
+- Institute dashboard and operational overview
+- Student management with linked login creation
+- Teacher management with subject/class assignment
+- Batch creation and timetable management
+- Lecture-aware attendance supervision
+- Homework monitoring
 - Exam scheduling
-- Study Materials / Drive
+- Study Materials Drive with folders and files
 - Fees and fee tracking
 - Announcements
-- User account status and recovery tools
-- Profile search
+- User account status/recovery tools
+- Student/teacher profile search
 
 ### Teacher
 
 - Home dashboard
-- Timetable / schedule
-- Lecture-based attendance available only during the scheduled lecture
-- Homework assignment and management
-- Study material upload and management
+- Weekly timetable
+- Lecture-based attendance
+- Homework assignment
+- Study-material upload/download
 - Notifications
 
 ### Student
@@ -43,91 +43,83 @@ Learner's Guide provides a central platform for managing day-to-day institute op
 
 ### Parent
 
-- Child selection when multiple children are linked
+- Linked-child selection
 - Child timetable
 - Attendance
 - Homework
 - Study Materials
 - Fees
-- Institute updates
+- Institute announcements
 
-## Architecture
-
-The application is structured around role-specific portals with shared authentication, Supabase data access, reusable UI components, and production-focused error handling.
+## 🏗️ Architecture
 
 ```text
 src/
-├── admin/                # Admin portal and management modules
-├── lg/                   # Shared data, auth, UI, and role workflows
-├── routes/               # Application routes and authenticated shell
-└── main entry files      # React/Vite application bootstrap
+├── admin/              # Admin portal and management modules
+├── lg/                 # Shared auth, data, UI and role workflows
+├── routes/             # Application and authenticated routes
+└── main entry files    # React/Vite bootstrap
 
 supabase/
-└── migrations/           # Database schema, RLS, triggers, and security hardening
+└── migrations/         # Schema, RLS, triggers and security hardening
 ```
 
-## Technology
+The application uses a shared Supabase data layer plus role-specific UI workflows. Sensitive authorization belongs in Supabase RLS and server-side/Edge Function logic rather than in browser-only checks.
+
+## 🧰 Technology stack
 
 - React 19
-- TypeScript / modern JavaScript
+- TypeScript and modern JavaScript
 - Vite 8
 - TanStack Router
 - Supabase Auth
-- Supabase Postgres
+- Supabase PostgreSQL
 - Supabase Storage
-- Responsive web UI / installable PWA support
+- Responsive UI / installable PWA support
+- GitHub + Vercel deployment workflow
 
-## Authentication & security
+## 🔐 Authentication and security
 
-Authentication is handled through Supabase Auth and role-aware application workflows.
+Authentication is handled through Supabase Auth with role-aware portals.
 
-The frontend must contain only public client configuration required by Supabase. Service-role credentials, passwords, and other privileged secrets must never be shipped to the browser.
+The browser should contain only the public Supabase client configuration required for the application. Never ship:
 
-Row Level Security (RLS), database policies, and server-side/Edge Function operations should remain the source of truth for sensitive authorization.
+- Supabase service-role keys
+- Private API keys
+- Server credentials
+- Password databases
+- Other privileged secrets
 
-## Data model
+RLS policies and server-side/Edge Function authorization are the security boundary for protected records and privileged operations.
 
-The application works with institute entities such as:
+## 📅 Timetable and attendance
 
-- Students
-- Teachers
-- Parents / linked parent-student relationships
-- Batches
-- Timetable entries
-- Attendance
-- Homework
-- Study Materials and folders
-- Fees
-- Announcements
-- Notifications
-- User account mappings
+Teacher attendance is lecture-aware. A teacher should see the attendance controls only while a scheduled lecture is active. Each lecture gets its own attendance identity so multiple lectures on the same day do not overwrite one another.
 
-## Timetable and attendance
+## 📚 Study Materials
 
-Teacher attendance is tied to the active timetable lecture. A teacher should be able to mark attendance only while one of their scheduled lectures is active.
+Study Materials is designed as a Drive-style system with:
 
-Attendance records are lecture-aware so separate lectures on the same day do not overwrite one another.
-
-## Study Materials
-
-Study Materials uses a Drive-style folder structure with:
-
-- Folders and subfolders
+- Class/subject-oriented folders
+- Subfolders
 - Batch targeting
-- File uploads
-- Supabase Storage
-- File download
-- Folder rename and deletion
-- Responsive mobile layout
+- Secure uploads through Supabase Storage
+- Downloads via signed URLs
+- Folder management
+- Responsive mobile behavior
 
-## Local development
+## ⏱️ Time format
+
+User-facing timetable and lecture times use a **12-hour format** with AM/PM, while database values may use normalized time representations internally.
+
+## 🛠️ Local development
 
 ### Requirements
 
 - Node.js 22+
 - npm
 
-### Setup
+### Install and run
 
 ```bash
 git clone https://github.com/Mahin98250/LG-Main-App.git
@@ -136,54 +128,51 @@ npm install
 npm run dev
 ```
 
-### Production build
-
-```bash
-npm run build
-```
-
-### Typecheck
+### Validate the application
 
 ```bash
 npm run typecheck
+npm run build
 ```
 
-## Environment configuration
+## 🌎 Environment variables
 
-Keep environment-specific values outside committed source files.
+Environment-specific configuration belongs in deployment settings or local `.env` files, not committed source code.
 
-Typical public client variables are configured through the deployment environment, for example:
+Typical public client configuration:
 
 ```env
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
 ```
 
-Never place a Supabase service-role key or any other privileged secret in `src/` or other browser-delivered code.
+The Supabase **service-role key must never be exposed to the frontend**.
 
-## Deployment
+## 🚀 Deployment
 
-The project is designed for Vercel-style production deployment, with GitHub used as the source repository and CI used to validate changes before release.
+The repository is designed for a GitHub → Vercel production workflow.
 
-Recommended release flow:
+Recommended release process:
 
-1. Develop on a feature branch.
-2. Run typecheck and production build.
-3. Review changed workflows.
-4. Merge only verified changes into `main`.
-5. Confirm deployment status after merge.
-6. Run role-based smoke tests against the deployed application.
+1. Work on a feature branch.
+2. Make one focused change at a time.
+3. Run typecheck and production build.
+4. Review affected workflows.
+5. Verify database/RLS implications.
+6. Merge only verified code into `main`.
+7. Confirm the production deployment is successful.
+8. Run smoke tests for all affected roles.
 
-## Production testing checklist
+## ✅ Production smoke-test checklist
 
-Before calling a release production-ready, verify at minimum:
+Before describing a release as production-ready, verify:
 
 - Admin login
 - Teacher login
-- Parent login
 - Student login
-- Admin CRUD workflows
-- Timetable creation/editing
+- Parent login
+- Admin student/teacher CRUD
+- Batches and timetable creation/editing
 - Teacher timetable visibility
 - Lecture-based attendance
 - Student/parent attendance visibility
@@ -191,15 +180,15 @@ Before calling a release production-ready, verify at minimum:
 - Study Materials folders and uploads
 - Fees
 - Announcements
-- Session refresh after inactivity
-- Mobile layout
+- Account/session refresh after inactivity
+- Mobile layout and navigation
 - Production build
 - RLS / unauthorized-access behavior
 
-## Project status
+## 📌 Current scope
 
-This repository is an actively developed production candidate. A feature should be considered complete only after code review, successful build checks, and end-to-end workflow verification in the deployed environment.
+The product intentionally focuses on institute operations that are currently supported by the application. Removed/retired modules should not be reintroduced into navigation or role workflows without a deliberate product decision.
 
-## License
+## 📄 License
 
 Private project. All rights reserved unless a separate license is provided by the project owner.
