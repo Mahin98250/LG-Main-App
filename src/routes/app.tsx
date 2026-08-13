@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { getCurrentUser, signOut } from "@/lg/auth";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { getCurrentUser, signOut, onAuthStateChange } from "@/lg/auth";
 import { clearCache, gdb, hydrateForRole } from "@/lg/data";
 import { GLOBAL_CSS, LGLogo } from "@/lg/ui";
 import { TeacherApp } from "@/lg/teacherWorkflows";
@@ -42,31 +42,62 @@ function AppShell() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const syncingRef = useRef(false);
+  const lastSyncRef = useRef(0);
+
+  const hydrate = useCallback(async (current: SessionUser, preserveVisibleState = false) => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    if (!preserveVisibleState) setReady(false);
+    setLoadError(null);
+    try {
+      await hydrateForRole(current.role);
+      setUser(current);
+      setReady(true);
+      lastSyncRef.current = Date.now();
+    } catch (error) {
+      console.error("Unable to refresh portal data:", error);
+      // Never replace a working portal with empty local state because a
+      // background refresh failed. Keep the existing view intact.
+      if (!preserveVisibleState) {
+        setLoadError("We could not load your institute data. Please check your connection or contact the administrator.");
+        setReady(false);
+      }
+    } finally {
+      syncingRef.current = false;
+    }
+  }, []);
 
   const load = useCallback(async () => {
-    setReady(false);
     setLoadError(null);
     const current = (await getCurrentUser()) as SessionUser | null;
     if (!current) {
       clearCache();
+      setUser(null);
+      setReady(false);
       navigate({ to: "/", replace: true });
       return;
     }
-    clearCache();
-    try {
-      // Hydrate only the signed-in role's datasets. Optional RLS denials are
-      // isolated inside hydrateForRole so one table cannot block the portal.
-      await hydrateForRole(current.role);
-      setUser(current);
-      setReady(true);
-    } catch (error) {
-      console.error("Unable to load portal data:", error);
-      clearCache();
-      setLoadError("We could not load your institute data. Please check your connection or contact the administrator.");
-    }
-  }, [navigate]);
+    await hydrate(current);
+  }, [hydrate, navigate]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const { data } = onAuthStateChange((event, nextUser) => {
+      if (!nextUser) {
+        clearCache();
+        setUser(null);
+        setReady(false);
+        navigate({ to: "/", replace: true });
+        return;
+      }
+      if (["SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event)) {
+        void hydrate(nextUser as SessionUser, event === "TOKEN_REFRESHED");
+      }
+    });
+    return () => { data.subscription.unsubscribe(); };
+  }, [hydrate, navigate]);
 
   useEffect(() => {
     if (!ready || !user) return;
@@ -83,9 +114,30 @@ function AppShell() {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [ready, user]);
 
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!user || syncingRef.current) return;
+      if (Date.now() - lastSyncRef.current < 15000) return;
+      void (async () => {
+        const current = (await getCurrentUser()) as SessionUser | null;
+        if (!current) return;
+        await hydrate(current, true);
+      })();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [hydrate, user]);
+
   const handleLogout = async () => {
     clearCache();
     await signOut();
+    setUser(null);
+    setReady(false);
     navigate({ to: "/", replace: true });
   };
 
