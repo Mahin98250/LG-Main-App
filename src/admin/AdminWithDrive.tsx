@@ -6,7 +6,7 @@ import BatchesTimetablePage from "@/admin/batches/BatchesTimetablePage";
 import HomeworkPage from "@/admin/HomeworkPage";
 import ExamSchedulePage from "@/admin/examschedule/ExamSchedulePage";
 import StudentResultsPage from "@/admin/results/StudentResultsPage";
-import MaterialsDrive from "@/admin/MaterialsDrive";
+import { MaterialsDrive } from "@/admin/MaterialsDrive";
 import AnnouncementsPage from "@/admin/AnnouncementsPage";
 import AdminMessagesPage from "@/admin/AdminMessagesPage";
 import { AdminErrorBoundary } from "@/admin/AdminErrorBoundary";
@@ -18,6 +18,7 @@ type Row = Record<string, any> & { id?: string | number };
 function Button({ children, onClick, color = C.accent, outline = false }: { children: ReactNode; onClick?: () => void; color?: string; outline?: boolean }) {
   return <button type="button" onClick={onClick} style={{ border: outline ? `1.5px solid ${color}` : 0, borderRadius: 10, padding: "9px 13px", background: outline ? "transparent" : color, color: outline ? color : "#fff", fontWeight: 800, cursor: "pointer" }}>{children}</button>;
 }
+
 const inputStyle: React.CSSProperties = { display: "block", width: "100%", boxSizing: "border-box", marginTop: 6, padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 10, background: "#F8FAFF", color: C.text };
 function Card({ children, style = {} }: { children: ReactNode; style?: React.CSSProperties }) { return <section style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 18, padding: 18, ...style }}>{children}</section>; }
 function ErrorBox({ error }: { error: string }) { return error ? <div style={{ marginBottom: 12, padding: 11, borderRadius: 10, background: "#FFF1F2", color: C.red }}>{error}</div> : null; }
