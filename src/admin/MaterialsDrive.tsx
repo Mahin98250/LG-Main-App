@@ -30,120 +30,374 @@ export function MaterialsDrive() {
   const [renameValue, setRenameValue] = useState("");
 
   const load = useCallback(async () => {
-    setLoading(true); setError("");
-    const [f, m, b] = await Promise.all([
+    setLoading(true);
+    setError("");
+
+    const [folderResult, materialResult, batchResult] = await Promise.all([
       supabase.from("material_folders").select("id,name,parent_id,created_at").order("name"),
       supabase.from("materials").select("id,title,name,folder_id,batch_id,storage_path,file_size,mime_type,created_at").order("created_at", { ascending: false }),
       supabase.from("batches").select("id,name,cls,sec,status").order("name"),
     ]);
-    if (f.error) setError(f.error.message); else setFolders(f.data || []);
-    if (m.error) setError(m.error.message); else setFiles(m.data || []);
-    if (b.error) setError(b.error.message); else setBatches((b.data || []).filter(x => !x.status || x.status === "active"));
+
+    const errors: string[] = [];
+
+    // Folders are the primary Study Materials workspace. Keep them independent
+    // from material/batch failures so one secondary request can never blank Drive.
+    if (folderResult.error) errors.push(`Folders: ${folderResult.error.message}`);
+    else setFolders(folderResult.data || []);
+
+    if (materialResult.error) errors.push(`Files: ${materialResult.error.message}`);
+    else setFiles(materialResult.data || []);
+
+    if (batchResult.error) errors.push(`Batches: ${batchResult.error.message}`);
+    else setBatches((batchResult.data || []).filter((x) => !x.status || x.status === "active"));
+
+    if (folderResult.data && current && !folderResult.data.some((folder) => folder.id === current.id)) {
+      setCurrent(null);
+    }
+
+    setError(errors.join(" • "));
     setLoading(false);
-  }, []);
+  }, [current]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  const visibleFolders = useMemo(() => folders.filter(f => f.parent_id === (current?.id ?? null)), [folders, current]);
-  const visibleFiles = useMemo(() => files.filter(f => f.folder_id === (current?.id ?? null)), [files, current]);
+  const visibleFolders = useMemo(
+    () => folders.filter((f) => f.parent_id === (current?.id ?? null)),
+    [folders, current],
+  );
+  const visibleFiles = useMemo(
+    () => files.filter((f) => f.folder_id === (current?.id ?? null)),
+    [files, current],
+  );
   const breadcrumbs = useMemo(() => {
     const out: Folder[] = [];
     let id = current?.id;
-    while (id) { const f = folders.find(x => x.id === id); if (!f) break; out.unshift(f); id = f.parent_id ?? undefined; }
+    while (id) {
+      const folder = folders.find((x) => x.id === id);
+      if (!folder) break;
+      out.unshift(folder);
+      id = folder.parent_id ?? undefined;
+    }
     return out;
   }, [current, folders]);
 
   async function createFolder() {
-    const name = folderName.trim(); if (!name) return;
-    setBusy(true); setError("");
-    const { data: user } = await supabase.auth.getUser();
-    const { error: e } = await supabase.from("material_folders").insert({ name, parent_id: current?.id ?? null, created_by: user.user?.id ?? null });
-    if (e) setError(e.message); else { setFolderName(""); setNewFolder(false); await load(); }
-    setBusy(false);
+    const name = folderName.trim();
+    if (!name) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) {
+        setError("Your administrator session has expired. Please sign in again.");
+        return;
+      }
+      const { error: e } = await supabase.from("material_folders").insert({
+        name,
+        parent_id: current?.id ?? null,
+        created_by: authData.user.id,
+      });
+      if (e) setError(e.message);
+      else {
+        setFolderName("");
+        setNewFolder(false);
+        await load();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to create the folder.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function renameFolder() {
     if (!rename || !renameValue.trim()) return;
-    setBusy(true); setError("");
-    const { error: e } = await supabase.from("material_folders").update({ name: renameValue.trim() }).eq("id", rename.id);
-    if (e) setError(e.message); else { setRename(null); await load(); }
-    setBusy(false);
+    setBusy(true);
+    setError("");
+    try {
+      const { error: e } = await supabase
+        .from("material_folders")
+        .update({ name: renameValue.trim() })
+        .eq("id", rename.id);
+      if (e) setError(e.message);
+      else {
+        setRename(null);
+        await load();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to rename the folder.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function deleteFolder(folder: Folder) {
     if (!window.confirm(`Delete “${folder.name}” and everything inside it?`)) return;
-    setBusy(true); setError("");
-    const { data: allFolders, error: folderReadError } = await supabase.from("material_folders").select("id,parent_id");
-    if (folderReadError) { setError(folderReadError.message); setBusy(false); return; }
-    const ids = new Set<string>([folder.id]);
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const f of allFolders || []) {
-        if (f.parent_id && ids.has(f.parent_id) && !ids.has(f.id)) { ids.add(f.id); changed = true; }
+    setBusy(true);
+    setError("");
+    try {
+      const { data: allFolders, error: folderReadError } = await supabase
+        .from("material_folders")
+        .select("id,parent_id");
+      if (folderReadError) {
+        setError(folderReadError.message);
+        return;
       }
+
+      const ids = new Set<string>([folder.id]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const f of allFolders || []) {
+          if (f.parent_id && ids.has(f.parent_id) && !ids.has(f.id)) {
+            ids.add(f.id);
+            changed = true;
+          }
+        }
+      }
+
+      const targets = files.filter((f) => f.folder_id && ids.has(f.folder_id));
+      const paths = targets.map((f) => f.storage_path).filter(Boolean) as string[];
+      if (paths.length) {
+        const { error: storageError } = await supabase.storage.from("materials").remove(paths);
+        if (storageError) {
+          setError(storageError.message);
+          return;
+        }
+      }
+
+      const { error: materialError } = await supabase
+        .from("materials")
+        .delete()
+        .in("folder_id", [...ids]);
+      if (materialError) {
+        setError(materialError.message);
+        return;
+      }
+
+      const { error: folderError } = await supabase
+        .from("material_folders")
+        .delete()
+        .in("id", [...ids]);
+      if (folderError) setError(folderError.message);
+      else {
+        if (current && ids.has(current.id)) setCurrent(null);
+        await load();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to delete the folder.");
+    } finally {
+      setBusy(false);
     }
-    const targets = files.filter(f => f.folder_id && ids.has(f.folder_id));
-    const paths = targets.map(f => f.storage_path).filter(Boolean) as string[];
-    if (paths.length) {
-      const { error: storageError } = await supabase.storage.from("materials").remove(paths);
-      if (storageError) { setError(storageError.message); setBusy(false); return; }
-    }
-    const { error: materialError } = await supabase.from("materials").delete().in("folder_id", [...ids]);
-    if (materialError) { setError(materialError.message); setBusy(false); return; }
-    const { error: folderError } = await supabase.from("material_folders").delete().in("id", [...ids]);
-    if (folderError) setError(folderError.message);
-    else { if (current && ids.has(current.id)) setCurrent(null); await load(); }
-    setBusy(false);
   }
 
   async function upload(file: File) {
-    if (file.size > MAX_FILE_SIZE) { setError("File is larger than the 50 MB limit."); return; }
-    if (!selectedBatchId) { setError("Select a batch before uploading so the correct students and parents receive the notification."); return; }
+    if (file.size > MAX_FILE_SIZE) {
+      setError("File is larger than the 50 MB limit.");
+      return;
+    }
+    if (!selectedBatchId) {
+      setError("Select a batch before uploading so the correct students and parents receive the notification.");
+      return;
+    }
+
     const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
     const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${crypto.randomUUID()}.${ext}`;
-    setBusy(true); setError("");
-    const { error: up } = await supabase.storage.from("materials").upload(path, file, { upsert: false, contentType: file.type || undefined });
-    if (up) { setError(up.message); setBusy(false); return; }
-    const { error: ins } = await supabase.from("materials").insert({ title: safe, name: safe, folder_id: current?.id ?? null, batch_id: selectedBatchId, storage_path: path, file_size: file.size, mime_type: file.type || null });
-    if (ins) { await supabase.storage.from("materials").remove([path]); setError(ins.message); } else await load();
-    setBusy(false);
+    setBusy(true);
+    setError("");
+
+    try {
+      const { error: up } = await supabase.storage
+        .from("materials")
+        .upload(path, file, { upsert: false, contentType: file.type || undefined });
+      if (up) {
+        setError(up.message);
+        return;
+      }
+
+      const { error: ins } = await supabase.from("materials").insert({
+        title: safe,
+        name: safe,
+        folder_id: current?.id ?? null,
+        batch_id: selectedBatchId,
+        storage_path: path,
+        file_size: file.size,
+        mime_type: file.type || null,
+      });
+      if (ins) {
+        await supabase.storage.from("materials").remove([path]);
+        setError(ins.message);
+      } else {
+        await load();
+      }
+    } catch (e) {
+      await supabase.storage.from("materials").remove([path]).catch(() => undefined);
+      setError(e instanceof Error ? e.message : "Unable to upload the material.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function download(file: Material) {
-    if (!file.storage_path) return;
-    const { data, error: e } = await supabase.storage.from("materials").download(file.storage_path);
-    if (e) { setError(e.message); return; }
-    const url = URL.createObjectURL(data); const a = document.createElement("a"); a.href = url; a.download = file.name || file.title || "material"; a.click(); URL.revokeObjectURL(url);
+    if (!file.storage_path) {
+      setError("This material does not have a stored file yet.");
+      return;
+    }
+    try {
+      const { data, error: e } = await supabase.storage.from("materials").download(file.storage_path);
+      if (e) {
+        setError(e.message);
+        return;
+      }
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name || file.title || "material";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to download the material.");
+    }
   }
 
   async function deleteFile(file: Material) {
     if (!window.confirm(`Delete “${file.name || file.title}”?`)) return;
-    setBusy(true); setError("");
-    if (file.storage_path) {
-      const { error: storageError } = await supabase.storage.from("materials").remove([file.storage_path]);
-      if (storageError) { setError(storageError.message); setBusy(false); return; }
+    setBusy(true);
+    setError("");
+    try {
+      if (file.storage_path) {
+        const { error: storageError } = await supabase.storage
+          .from("materials")
+          .remove([file.storage_path]);
+        if (storageError) {
+          setError(storageError.message);
+          return;
+        }
+      }
+      const { error: e } = await supabase.from("materials").delete().eq("id", file.id);
+      if (e) setError(e.message);
+      else await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to delete the material.");
+    } finally {
+      setBusy(false);
     }
-    const { error: e } = await supabase.from("materials").delete().eq("id", file.id);
-    if (e) setError(e.message); else await load();
-    setBusy(false);
   }
 
-  return <div className="drive-wrap" style={{ minHeight: "100%", padding: 28, fontFamily: "Poppins,system-ui,sans-serif", color: "#0F1B3D" }}>
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
-      <div><h2 style={{ margin: 0 }}>📚 Study Materials</h2><p style={{ margin: "5px 0 0", color: "#64748B", fontSize: 13 }}>Organize notes, PDFs and presentations like Google Drive. Maximum file size: 50 MB.</p></div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><select value={selectedBatchId} onChange={e => setSelectedBatchId(e.target.value)} disabled={busy} aria-label="Target batch" style={batchSelect}><option value="">Select batch</option>{batches.map(b => <option key={b.id} value={b.id}>{b.name}{b.cls || b.sec ? ` — ${[b.cls, b.sec].filter(Boolean).join("-")}` : ""}</option>)}</select><button disabled={busy} onClick={() => setNewFolder(true)} style={btn}>📁 New Folder</button><label style={{ ...btn, cursor: busy ? "wait" : "pointer", opacity: busy ? .6 : 1 }}>⬆ Upload<input hidden disabled={busy} type="file" accept={ACCEPT} onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.currentTarget.value = ""; }} /></label><button disabled={busy} onClick={() => void load()} style={btn}>↻</button></div>
+  return (
+    <div
+      className="drive-wrap"
+      style={{ minHeight: "100%", padding: 28, fontFamily: "Poppins,system-ui,sans-serif", color: "#0F1B3D" }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
+        <div>
+          <h2 style={{ margin: 0 }}>📚 Study Materials</h2>
+          <p style={{ margin: "5px 0 0", color: "#64748B", fontSize: 13 }}>
+            Organize notes, PDFs and presentations like Google Drive. Maximum file size: 50 MB.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <select value={selectedBatchId} onChange={(e) => setSelectedBatchId(e.target.value)} disabled={busy} aria-label="Target batch" style={batchSelect}>
+            <option value="">Select batch</option>
+            {batches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}{b.cls || b.sec ? ` — ${[b.cls, b.sec].filter(Boolean).join("-")}` : ""}
+              </option>
+            ))}
+          </select>
+          <button type="button" disabled={busy} onClick={() => setNewFolder(true)} style={btn}>📁 New Folder</button>
+          <label style={{ ...btn, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}>
+            ⬆ Upload
+            <input hidden disabled={busy} type="file" accept={ACCEPT} onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.currentTarget.value = ""; }} />
+          </label>
+          <button type="button" disabled={busy} onClick={() => void load()} style={btn}>↻</button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap", marginBottom: 14, fontSize: 13 }}>
+        <button type="button" onClick={() => setCurrent(null)} style={crumb}>My Drive</button>
+        {breadcrumbs.map((f) => (
+          <span key={f.id}> / <button type="button" onClick={() => setCurrent(f)} style={crumb}>{f.name}</button></span>
+        ))}
+      </div>
+
+      {error && (
+        <div style={{ background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA", padding: 12, borderRadius: 12, marginBottom: 14 }}>
+          {error}
+        </div>
+      )}
+
+      <div className="drive-grid" style={grid}>
+        {loading ? (
+          <div style={empty}>Loading…</div>
+        ) : (
+          <>
+            {visibleFolders.map((f) => (
+              <div key={f.id} style={item} onDoubleClick={() => setCurrent(f)}>
+                <button type="button" onClick={() => setCurrent(f)} style={icon}>📁</button>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</b>
+                  <span style={meta}>Folder</span>
+                </div>
+                <button type="button" title="Rename" disabled={busy} onClick={() => { setRename(f); setRenameValue(f.name); }} style={more}>✎</button>
+                <button type="button" title="Delete" disabled={busy} onClick={() => void deleteFolder(f)} style={more}>🗑</button>
+              </div>
+            ))}
+            {visibleFiles.map((f) => (
+              <div key={f.id} style={item}>
+                <div style={{ ...icon, fontSize: 26 }}>{f.mime_type?.includes("powerpoint") ? "📊" : f.mime_type?.includes("pdf") ? "📄" : "📎"}</div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name || f.title || "Untitled"}</b>
+                  <span style={meta}>{bytes(f.file_size)}</span>
+                </div>
+                <button type="button" title="Download" disabled={busy} onClick={() => void download(f)} style={more}>⬇</button>
+                <button type="button" title="Delete" disabled={busy} onClick={() => void deleteFile(f)} style={more}>🗑</button>
+              </div>
+            ))}
+            {!visibleFolders.length && !visibleFiles.length && (
+              <div style={{ ...empty, gridColumn: "1/-1" }}>
+                This folder is empty. Create a folder or upload a file.
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {newFolder && (
+        <div style={overlay}>
+          <div style={dialog}>
+            <h3 style={{ marginTop: 0 }}>New Folder</h3>
+            <input autoFocus value={folderName} onChange={(e) => setFolderName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void createFolder(); }} placeholder="Folder name" style={input} />
+            <div style={dialogActions}>
+              <button type="button" onClick={() => setNewFolder(false)} style={cancel}>Cancel</button>
+              <button type="button" disabled={busy} onClick={() => void createFolder()} style={btn}>Create</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rename && (
+        <div style={overlay}>
+          <div style={dialog}>
+            <h3 style={{ marginTop: 0 }}>Rename Folder</h3>
+            <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void renameFolder(); }} style={input} />
+            <div style={dialogActions}>
+              <button type="button" onClick={() => setRename(null)} style={cancel}>Cancel</button>
+              <button type="button" disabled={busy} onClick={() => void renameFolder()} style={btn}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`@media(max-width:650px){.drive-grid{grid-template-columns:1fr!important}.drive-wrap{padding:16px!important}}`}</style>
     </div>
-    <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap", marginBottom: 14, fontSize: 13 }}><button onClick={() => setCurrent(null)} style={crumb}>My Drive</button>{breadcrumbs.map(f => <span key={f.id}> / <button onClick={() => setCurrent(f)} style={crumb}>{f.name}</button></span>)}</div>
-    {error && <div style={{ background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA", padding: 12, borderRadius: 12, marginBottom: 14 }}>{error}</div>}
-    <div className="drive-grid" style={grid}>
-      {loading ? <div style={empty}>Loading…</div> : <>{visibleFolders.map(f => <div key={f.id} style={item} onDoubleClick={() => setCurrent(f)}><button onClick={() => setCurrent(f)} style={icon}>📁</button><div style={{ minWidth: 0, flex: 1 }}><b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</b><span style={meta}>Folder</span></div><button title="Rename" onClick={() => { setRename(f); setRenameValue(f.name); }} style={more}>✎</button><button title="Delete" onClick={() => void deleteFolder(f)} style={more}>🗑</button></div>)}{visibleFiles.map(f => <div key={f.id} style={item}><div style={{ ...icon, fontSize: 26 }}>{f.mime_type?.includes("powerpoint") ? "📊" : f.mime_type?.includes("pdf") ? "📄" : "📎"}</div><div style={{ minWidth: 0, flex: 1 }}><b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name || f.title || "Untitled"}</b><span style={meta}>{bytes(f.file_size)}</span></div><button title="Download" onClick={() => void download(f)} style={more}>⬇</button><button title="Delete" onClick={() => void deleteFile(f)} style={more}>🗑</button></div>)}{!visibleFolders.length && !visibleFiles.length && !loading && <div style={{ ...empty, gridColumn: "1/-1" }}>This folder is empty. Create a folder or upload a file.</div>}</>}
-    </div>
-    {newFolder && <div style={overlay}><div style={dialog}><h3 style={{ marginTop: 0 }}>New Folder</h3><input autoFocus value={folderName} onChange={e => setFolderName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void createFolder(); }} placeholder="Folder name" style={input} /><div style={dialogActions}><button onClick={() => setNewFolder(false)} style={cancel}>Cancel</button><button disabled={busy} onClick={() => void createFolder()} style={btn}>Create</button></div></div></div>}
-    {rename && <div style={overlay}><div style={dialog}><h3 style={{ marginTop: 0 }}>Rename Folder</h3><input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void renameFolder(); }} style={input} /><div style={dialogActions}><button onClick={() => setRename(null)} style={cancel}>Cancel</button><button disabled={busy} onClick={() => void renameFolder()} style={btn}>Save</button></div></div></div>}
-    <style>{`@media(max-width:650px){.drive-grid{grid-template-columns:1fr!important}.drive-wrap{padding:16px!important}}`}</style>
-  </div>;
+  );
 }
 
 const btn: React.CSSProperties = { border: 0, borderRadius: 11, padding: "10px 14px", background: "#4361EE", color: "#fff", fontWeight: 750 };
