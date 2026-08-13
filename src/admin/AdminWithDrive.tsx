@@ -45,5 +45,9 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
   if (view === "announcements") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Announcements" onBack={() => setView("panel")} /><SafeSection title="Announcements"><AnnouncementsPage /></SafeSection></div>;
   if (view === "homework") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Homework · Production Management" onBack={() => setView("panel")} /><SafeSection title="Homework"><HomeworkPage /></SafeSection></div>;
   if (view === "recovery") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Password Recovery · Account Security" onBack={() => setView("panel")} /><SafeSection title="User Accounts"><RecoverySettingsPage /></SafeSection></div>;
-  return <SafeSection title="Admin Panel"><ReferenceAdminPanel user={user} onLogout={onLogout} /></SafeSection>;
+
+  // Keep the legacy Reference Admin Panel's internal navigation untouched.
+  // This is important because its remaining Admin sections (Attendance, Exams,
+  // Results, Fees, Marks, Search, Messages, etc.) own their navigation state.
+  return <ReferenceAdminPanel user={user} onLogout={onLogout} />;
 }
