@@ -1,0 +1,41 @@
+name: Fix student schedule
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, 'fix: student schedule from batch timetable') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch student timetable UI
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('src/lg/student.jsx')
+          s = p.read_text()
+
+          home = r'''export function STHome({student}){const [freshSlots,setFreshSlots]=useState([]);const att=lsG("attendance").filter(a=>a.sid===student?.id);const rate=att.length?Math.round((att.filter(a=>a.status==="present").length/att.length)*100):0;const hw=student?lsG("homework").filter(h=>h.cls===student.cls&&h.sec===student.sec):[];const cached=student?lsG("timetable").filter(tt=>student.batch_id?String(tt.batchId)===String(student.batch_id):(tt.cls===student.cls&&tt.sec===student.sec)):[];useEffect(()=>{let alive=true;gdb("timetable").then(rows=>{if(alive)setFreshSlots(Array.isArray(rows)?rows:[])}).catch(()=>{});return()=>{alive=false}},[student?.batch_id]);const allSlots=(freshSlots.length?freshSlots:cached).filter(tt=>student?.batch_id?String(tt.batchId)===String(student.batch_id):(tt.cls===student?.cls&&tt.sec===student?.sec));const slots=allSlots.filter(tt=>tt.day===today());const order={Sunday:0,Monday:1,Tuesday:2,Wednesday:3,Thursday:4,Friday:5,Saturday:6};const weekDays=[...new Set(allSlots.map(s=>s.day).filter(Boolean))].sort((a,b)=>(order[a]??99)-(order[b]??99));const dayCode=weekDays.map(d=>String(d).charAt(0)).join("");const ann=lsG("announcements").filter(a=>a.target==="all").slice(0,2);return(<div><div className="fu" style={{background:`linear-gradient(135deg,#5B4FE8,#7B6FF5)`,borderRadius:20,padding:"18px",marginBottom:16,position:"relative",overflow:"hidden"}}><div style={{position:"absolute",top:-18,right:-18,width:70,height:70,borderRadius:"50%",background:"rgba(255,255,255,0.1)"}}/><div style={{fontSize:20,fontWeight:900,color:"#fff"}}>{student?.name}</div><div style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginTop:2}}>Class {student?.cls}-{student?.sec} · {student?.sid}</div><div style={{display:"flex",gap:12,marginTop:14,flexWrap:"wrap"}}>{[[`${rate}%`,"Attendance"],[hw.length,"Homework"],[slots.length,"Today"],[dayCode||"—","Schedule"]].map(([v,l])=><div key={l} className="pressable" style={{background:"rgba(255,255,255,.18)",borderRadius:11,padding:"8px 14px",cursor:"default"}}><div style={{fontSize:17,fontWeight:900,color:"#fff"}}>{v}</div><div style={{fontSize:10,color:"rgba(255,255,255,.65)"}}>{l}</div></div>)}</div></div>{weekDays.length>0&&<Card style={{marginBottom:14,padding:14}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}><div><div style={{fontSize:11,color:C.sub,fontWeight:800}}>WEEKLY SCHEDULE</div><div style={{fontSize:18,fontWeight:900,color:C.text,marginTop:2}}>{dayCode}</div></div><div style={{fontSize:11,color:C.sub,textAlign:"right"}}>{weekDays.join(" · ")}</div></div></Card>}<Sec title={`Today – ${today()} 📖`}/>{slots.length===0?<Card style={{marginBottom:14,textAlign:"center",padding:22}}><div style={{color:C.sub,fontSize:13}}>No classes today 🎉</div></Card>:slots.map((s,i)=><Card key={s.id} className={`fu d${i+1}`} style={{marginBottom:9,display:"flex",gap:11,alignItems:"center"}}><div style={{width:40,height:40,borderRadius:12,background:C.accent+"15",display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>📚</div><div><div style={{fontWeight:700,color:C.text,fontSize:13}}>{s.subject}</div><div style={{fontSize:11,color:C.sub}}>{s.slot}</div></div></Card>)}<Sec title="Homework Due 📝"/>{hw.slice(0,2).map((h,i)=><Card key={h.id} className={`fu d${i+1}`} style={{marginBottom:9,borderLeft:`4px solid ${C.gold}`}}><div style={{fontWeight:700,color:C.text,fontSize:13,marginBottom:2}}>{h.subject}</div><div style={{fontSize:12,color:C.sub,marginBottom:3}}>{h.desc}</div><div style={{fontSize:11}}>Due: <span style={{color:"#EF4444",fontWeight:700}}>{h.due}</span></div></Card>)}{hw.length===0&&<Card style={{marginBottom:14,textAlign:"center",padding:20}}><div style={{color:C.sub,fontSize:13}}>No pending homework 🎉</div></Card>}<Sec title="Announcements 📢"/>{ann.map((a,i)=><Card key={a.id} className={`fu d${i+1}`} style={{marginBottom:9}}><div style={{fontWeight:700,color:C.text,fontSize:13,marginBottom:2}}>{a.title}</div><div style={{fontSize:12,color:C.sub}}>{a.desc}</div></Card>)}</div>);}'''
+
+          timetable = r'''export function STTimetable({student}){const [slots,setSlots]=useState([]);useEffect(()=>{let alive=true;gdb("timetable").then(rows=>{if(alive)setSlots((Array.isArray(rows)?rows:[]).filter(tt=>student?.batch_id?String(tt.batchId)===String(student.batch_id):(tt.cls===student?.cls&&tt.sec===student?.sec)))}).catch(()=>{});return()=>{alive=false}},[student?.batch_id,student?.cls,student?.sec]);const days=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];const em={"Mathematics":"🔢","Maths":"🔢","Science":"🔬","English":"📖","History":"🏛","Geography":"🌍"};return(<div><Sec title="My Timetable 📅"/>{days.map((day,di)=>{const ds=slots.filter(s=>s.day===day);const it=day===today();return(<div key={day} className={`fu d${di%4+1}`} style={{marginBottom:14}}><div style={{fontSize:12,fontWeight:800,color:it?C.accent:C.sub,marginBottom:7,display:"flex",alignItems:"center",gap:7}}><span style={{padding:"4px 11px",background:it?C.accent+"15":"#F1F5F9",borderRadius:8}}>{day}</span>{it&&<span className="tick-pop" style={{fontSize:10,background:C.accent,color:"#fff",padding:"3px 9px",borderRadius:20}}>TODAY</span>}</div>{ds.length===0?<div style={{fontSize:12,color:C.sub,paddingLeft:10,opacity:.6}}>No classes</div>:ds.map(s=><Card key={s.id} style={{marginBottom:8,display:"flex",gap:11,alignItems:"center",borderLeft:it?`3px solid ${C.accent}`:undefined}}><div style={{width:38,height:38,borderRadius:11,background:C.accent+"12",display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>{em[s.subject]||"📚"}</div><div><div style={{fontWeight:700,color:C.text,fontSize:13}}>{s.subject}</div><div style={{fontSize:11,color:C.sub}}>{s.slot}</div></div></Card>)}</div>);})}</div>);}'''
+
+          s2 = re.sub(r'export function STHome\(\{student\}\).*?(?=\nexport function STAttendance)', home, s, count=1, flags=re.S)
+          s2 = re.sub(r'export function STTimetable\(\{student\}\).*?(?=\nexport function STAttendance)', timetable + '\n', s2, count=1, flags=re.S)
+          if s2 == s:
+              raise SystemExit('No timetable functions were patched')
+          p.write_text(s2)
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lg/student.jsx
+          git diff --cached --quiet || git commit -m "fix: student schedule from batch timetable"
+          git push
