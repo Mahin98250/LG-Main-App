@@ -1,26 +1,22 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 const path = 'src/lg/student.jsx';
-let s = readFileSync(path, 'utf8');
+const s = readFileSync(path, 'utf8');
 
-const oldHome = 'const slots=student?lsG("timetable").filter(tt=>tt.cls===student.cls&&tt.sec===student.sec&&tt.day===today()):[];const ann=lsG("announcements").filter(a=>a.target==="all").slice(0,2);';
-const newHome = 'const allSlots=student?lsG("timetable").filter(tt=>student.batch_id?String(tt.batchId)===String(student.batch_id):(tt.cls===student.cls&&tt.sec===student.sec)):[];const slots=allSlots.filter(tt=>tt.day===today());const dayOrder={Monday:1,Tuesday:2,Wednesday:3,Thursday:4,Friday:5,Saturday:6};const scheduleDays=[...new Set(allSlots.map(tt=>tt.day).filter(Boolean))].sort((a,b)=>(dayOrder[a]??99)-(dayOrder[b]??99));const scheduleCode=scheduleDays.map(day=>day[0]).join("");const ann=lsG("announcements").filter(a=>a.target==="all").slice(0,2);';
-if (!s.includes(oldHome)) throw new Error('Student home timetable source not found');
-s = s.replace(oldHome, newHome);
+// The student timetable implementation is now maintained directly in student.jsx.
+// This prebuild hook is intentionally validation-only so it never rewrites or
+// breaks a newer implementation during production builds.
+const required = [
+  'const DAY_SHORT=',
+  'const DAY_ORDER=',
+  'const studentSlots=',
+  'const scheduleCodeFor=',
+  'Saturday',
+];
 
-const oldStats = '{[[`${rate}%`,"Attendance"],[hw.length,"Homework"],[slots.length,"Today"]].map(([v,l])=>';
-const newStats = '{[[`${rate}%`,"Attendance"],[hw.length,"Homework"],[slots.length,"Today"],[scheduleCode||"—","Schedule"]].map(([v,l])=>';
-if (!s.includes(oldStats)) throw new Error('Student home stats source not found');
-s = s.replace(oldStats, newStats);
+const missing = required.filter(token => !s.includes(token));
+if (missing.length) {
+  throw new Error(`Student schedule implementation is incomplete: ${missing.join(', ')}`);
+}
 
-const oldDays = 'const days=["Monday","Tuesday","Wednesday","Thursday","Friday"];';
-const newDays = 'const days=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];';
-if (!s.includes(oldDays)) throw new Error('Student weekday list not found');
-s = s.replace(oldDays, newDays);
-
-const oldFilter = 'const slots=student?lsG("timetable").filter(tt=>tt.cls===student.cls&&tt.sec===student.sec):[];';
-const newFilter = 'const slots=student?lsG("timetable").filter(tt=>student.batch_id?String(tt.batchId)===String(student.batch_id):(tt.cls===student.cls&&tt.sec===student.sec)):[];';
-if (!s.includes(oldFilter)) throw new Error('Student timetable filter not found');
-s = s.replace(oldFilter, newFilter);
-
-writeFileSync(path, s);
+console.log('Student schedule implementation validated; no patch required.');
