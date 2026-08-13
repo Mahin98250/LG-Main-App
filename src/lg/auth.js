@@ -76,8 +76,6 @@ export async function signIn(loginId, password, role) {
 
   let authResult;
   try {
-    // The admin account is a normal Supabase Auth account, so do not make admin
-    // login depend on a separately deployed Edge Function.
     authResult = role === "admin"
       ? await signInAdminDirectly(cleanLogin, password)
       : await signInViaGateway(cleanLogin, password, role);
