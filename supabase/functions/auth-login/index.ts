@@ -6,11 +6,10 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" },
-  });
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" },
+});
 
 const clean = (v: unknown) => String(v ?? "").trim();
 const key = (v: unknown) => clean(v).toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -21,6 +20,25 @@ const emailFor = (loginId: string, role: string) => {
   if (value.includes("@")) return value.toLowerCase();
   return `${prefix[role] || "u"}.${key(value)}@learnersguide.in`;
 };
+
+async function findAuthUserByRoleAndLogin(admin: ReturnType<typeof createClient>, role: string, loginId: string) {
+  const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (error) throw error;
+  const normalized = key(loginId);
+  return data.users.find((u) => {
+    if (u.app_metadata?.role !== role) return false;
+    const phone = key(u.user_metadata?.phone || "");
+    const login = key(loginId);
+    const email = clean(u.email).toLowerCase();
+    return phone === normalized || email === clean(loginId).toLowerCase();
+  }) || null;
+}
+
+async function findAuthUserByRef(admin: ReturnType<typeof createClient>, role: string, ref: string) {
+  const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (error) throw error;
+  return data.users.find((u) => u.app_metadata?.role === role && String(u.app_metadata?.ref || "") === String(ref)) || null;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -43,92 +61,54 @@ Deno.serve(async (req) => {
     let email = emailFor(loginId, role);
     let authId = "";
     let profileId = "";
-    let profileStatus = "active";
+    let accountStatus = "active";
 
-    // Resolve the institute profile first. Never read legacy plaintext password columns.
-    // Supabase Auth is the only password authority.
-    if (role === "teacher") {
-      let teacher: any = null;
-      for (const column of ["tid", "phone", "id"]) {
-        const { data, error } = await admin
-          .from("teachers")
-          .select("id,tid,phone,status")
-          .eq(column, loginId)
-          .limit(1)
-          .maybeSingle();
-        if (error) return json({ error: "Unable to verify login. Please try again." }, 503);
-        if (data) { teacher = data; break; }
-      }
-      if (!teacher) return json({ error: "Invalid login ID or password." }, 401);
-      if (inactive(teacher.status)) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
-      profileId = String(teacher.id);
-      profileStatus = clean(teacher.status || "active");
-    } else if (role === "student") {
+    if (role === "student") {
+      // Student lookup remains database-backed because SID is the canonical student login ID.
       let student: any = null;
       for (const column of ["sid", "id"]) {
-        const { data, error } = await admin
-          .from("students")
-          .select("id,sid,status")
-          .eq(column, loginId)
-          .limit(1)
-          .maybeSingle();
+        const { data, error } = await admin.from("students").select("id,sid,status").eq(column, loginId).limit(1).maybeSingle();
         if (error) return json({ error: "Unable to verify login. Please try again." }, 503);
         if (data) { student = data; break; }
       }
       if (!student) return json({ error: "Invalid login ID or password." }, 401);
       if (inactive(student.status)) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
       profileId = String(student.id);
-      profileStatus = clean(student.status || "active");
+      accountStatus = clean(student.status || "active");
     } else {
-      const { data: parent, error: parentError } = await admin
-        .from("users")
-        .select("auth_id,email,ref,phone,status")
-        .eq("role", "parent")
-        .eq("phone", loginId)
-        .limit(1)
-        .maybeSingle();
-      if (parentError) return json({ error: "Unable to verify login. Please try again." }, 503);
-      if (!parent) return json({ error: "Invalid login ID or password." }, 401);
-      if (inactive(parent.status)) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
-      authId = clean(parent.auth_id);
-      if (clean(parent.email).includes("@")) email = clean(parent.email).toLowerCase();
-      profileId = clean(parent.ref);
-      profileStatus = clean(parent.status || "active");
-    }
+      // Teacher/Parent authentication is resolved from the Auth account metadata first.
+      // This avoids brittle dependence on legacy/renamed profile columns.
+      let authUser = await findAuthUserByRoleAndLogin(admin, role, loginId);
 
-    // Resolve the application user by role + profile reference. This is the canonical
-    // link between the institute record and Supabase Auth account.
-    if (!authId && profileId) {
-      const { data: appUser, error: appUserError } = await admin
-        .from("users")
-        .select("auth_id,email,status,role,ref")
-        .eq("role", role)
-        .eq("ref", profileId)
-        .limit(1)
-        .maybeSingle();
-      if (appUserError) return json({ error: "Unable to verify login. Please try again." }, 503);
-      if (appUser) {
-        if (inactive(appUser.status)) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
-        authId = clean(appUser.auth_id);
-        if (clean(appUser.email).includes("@")) email = clean(appUser.email).toLowerCase();
+      if (!authUser) {
+        // Fallback to the canonical users row. This supports older accounts whose Auth
+        // metadata does not contain the phone/login identifier.
+        const { data: appUser, error } = await admin
+          .from("users")
+          .select("auth_id,email,ref,phone,status,role")
+          .eq("role", role)
+          .eq("phone", loginId)
+          .limit(1)
+          .maybeSingle();
+        if (!error && appUser) {
+          authId = clean(appUser.auth_id);
+          profileId = clean(appUser.ref);
+          accountStatus = clean(appUser.status || "active");
+          if (inactive(accountStatus)) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
+          if (clean(appUser.email).includes("@")) email = clean(appUser.email).toLowerCase();
+          if (authId) {
+            const { data: byId, error: byIdError } = await admin.auth.admin.getUserById(authId);
+            if (!byIdError && byId.user) authUser = byId.user;
+          }
+          if (!authUser && profileId) authUser = await findAuthUserByRef(admin, role, profileId);
+        }
       }
-    }
 
-    // If a users row has no auth_id/email, find the Auth user by role/ref metadata.
-    if (authId) {
-      const { data: authData, error: authLookupError } = await admin.auth.admin.getUserById(authId);
-      if (authLookupError || !authData.user) return json({ error: "Your authentication account is missing. Please contact the institute administrator." }, 401);
-      if (authData.user.email) email = authData.user.email.toLowerCase();
-    } else if (profileId) {
-      const { data: users, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      if (usersError) return json({ error: "Unable to verify login. Please try again." }, 503);
-      const authUser = users.users.find(
-        (u) => u.app_metadata?.role === role && String(u.app_metadata?.ref || "") === String(profileId),
-      );
-      if (authUser) {
-        authId = authUser.id;
-        if (authUser.email) email = authUser.email.toLowerCase();
-      }
+      if (!authUser) return json({ error: "Invalid login ID or password." }, 401);
+      if (inactive(authUser.user_metadata?.status)) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
+      authId = authUser.id;
+      email = clean(authUser.email).toLowerCase() || email;
+      profileId = clean(authUser.app_metadata?.ref) || profileId;
     }
 
     if (!email) return json({ error: "Your authentication account is not configured. Please contact the institute administrator." }, 401);
@@ -136,7 +116,7 @@ Deno.serve(async (req) => {
     const client = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
     const { data, error } = await client.auth.signInWithPassword({ email, password });
     if (error || !data.session || !data.user) {
-      console.error("auth-login invalid credentials", { role, loginId, authId, error: error?.message });
+      console.error("auth-login invalid credentials", { role, authId, error: error?.message });
       return json({ error: "Invalid login ID or password." }, 401);
     }
 
