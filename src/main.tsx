@@ -4,7 +4,29 @@ import { RouterProvider } from "@tanstack/react-router";
 import { getRouter } from "./router";
 import InstallAppPrompt from "./InstallAppPrompt";
 import StartupSplash from "./StartupSplash";
+import DatabaseActivityOverlay, { emitDatabaseActivity } from "./DatabaseActivityOverlay";
 import "./mobile.css";
+
+const originalFetch = window.fetch.bind(window);
+window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+  const isSupabase = rawUrl.includes("supabase.co");
+  if (!isSupabase) return originalFetch(input, init);
+
+  const method = (init?.method || (typeof input !== "string" && !(input instanceof URL) ? input.method : "GET")).toUpperCase();
+  const path = rawUrl.toLowerCase();
+  const isUpload = path.includes("/storage/") && ["POST", "PUT", "PATCH"].includes(method);
+  const isSave = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+  const label = path.includes("/storage/") ? (isUpload ? "Uploading…" : method === "DELETE" ? "Removing…" : "Loading file…") : path.includes("/auth/") ? "Checking account…" : isSave ? "Saving changes…" : "Loading data…";
+  const kind = isUpload ? "upload" : isSave ? "save" : path.includes("/auth/") ? "sync" : "load";
+
+  emitDatabaseActivity(true, label, kind);
+  try {
+    return await originalFetch(input, init);
+  } finally {
+    emitDatabaseActivity(false, label, kind);
+  }
+};
 
 const router = getRouter();
 
@@ -23,9 +45,6 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
   });
 }
 
-// Downloads must stay on the current app route. Some browsers otherwise honor
-// target="_blank" on data/blob download links and open a new document/tab,
-// which makes returning from a material download look like a navigation to the Student home screen. Normalize all in-app download links before the browser performs the default action.
 window.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
@@ -38,5 +57,6 @@ ReactDOM.createRoot(root).render(
     <StartupSplash />
     <RouterProvider router={router} />
     <InstallAppPrompt />
+    <DatabaseActivityOverlay />
   </React.StrictMode>,
 );
