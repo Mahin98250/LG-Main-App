@@ -1,0 +1,101 @@
+import { useEffect, useMemo, useState } from "react";
+import { addR, delR, gdb, C, subjectsForClasses } from "@/lg/data";
+
+type Row = Record<string, any>;
+
+const MAX_PDF_BYTES = 50 * 1024 * 1024;
+
+export default function HomeworkPage() {
+  const [homework, setHomework] = useState<Row[]>([]);
+  const [batches, setBatches] = useState<Row[]>([]);
+  const [teachers, setTeachers] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({ batchId: "", teacherId: "", subject: "", desc: "", given: new Date().toISOString().slice(0, 10), due: "", pdfName: "", pdfData: "" });
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [hw, bs, ts] = await Promise.all([gdb("homework"), gdb("batches"), gdb("teachers")]);
+      setHomework(hw || []);
+      setBatches((bs || []).filter((b: Row) => b.status !== "inactive"));
+      setTeachers((ts || []).filter((t: Row) => t.status !== "inactive"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load homework.");
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  const selectedBatch = batches.find((b) => String(b.id) === String(form.batchId));
+  const subjects = useMemo(() => subjectsForClasses(selectedBatch?.cls ? [selectedBatch.cls] : []), [selectedBatch?.cls]);
+
+  const handlePdf = (file: File | undefined) => {
+    if (!file) return;
+    if (file.type !== "application/pdf") { setError("Only PDF files are allowed."); return; }
+    if (file.size > MAX_PDF_BYTES) { setError("PDF is too large. Maximum size is 50 MB."); return; }
+    const reader = new FileReader();
+    reader.onload = () => setForm((f) => ({ ...f, pdfName: file.name, pdfData: String(reader.result || "") }));
+    reader.onerror = () => setError("Could not read the PDF. Please try again.");
+    reader.readAsDataURL(file);
+  };
+
+  const save = async () => {
+    setError("");
+    if (!form.batchId || !form.subject || !form.desc.trim() || !form.due) { setError("Batch, subject, description and due date are required."); return; }
+    if (!selectedBatch) { setError("Please select a valid batch."); return; }
+    setSaving(true);
+    try {
+      await addR("homework", {
+        id: `hw_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        cls: String(selectedBatch.cls || ""),
+        sec: String(selectedBatch.sec || ""),
+        batch_id: selectedBatch.id,
+        subject: form.subject,
+        desc: form.desc.trim(),
+        given: form.given,
+        due: form.due,
+        tid: form.teacherId || null,
+        completedby: [],
+        pdfname: form.pdfName || null,
+        pdfdata: form.pdfData || null,
+      });
+      setForm({ batchId: "", teacherId: "", subject: "", desc: "", given: new Date().toISOString().slice(0, 10), due: "", pdfName: "", pdfData: "" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to create homework.");
+    } finally { setSaving(false); }
+  };
+
+  const remove = async (id: string) => {
+    if (!window.confirm("Delete this homework?")) return;
+    try { await delR("homework", id); await load(); }
+    catch (e) { setError(e instanceof Error ? e.message : "Unable to delete homework."); }
+  };
+
+  return <div style={{ padding: 28, maxWidth: 1100, margin: "0 auto", fontFamily: "Poppins,system-ui,sans-serif", color: C.text }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, gap: 12, flexWrap: "wrap" }}>
+      <div><h2 style={{ margin: 0, fontSize: 20 }}>Homework 📝</h2><div style={{ color: C.sub, fontSize: 13, marginTop: 3 }}>Admin can assign homework to any batch and attach a PDF.</div></div>
+      <button onClick={() => void load()} style={{ border: 0, borderRadius: 10, padding: "9px 13px", background: C.light, color: C.accent, fontWeight: 800, cursor: "pointer" }}>↻ Refresh</button>
+    </div>
+    {error && <div style={{ background: "#FFF5F5", border: `1px solid ${C.red}33`, borderLeft: `4px solid ${C.red}`, borderRadius: 12, padding: 12, marginBottom: 14, color: C.red, fontSize: 13 }}>{error}</div>}
+    <div style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 18, padding: 20, marginBottom: 18, boxShadow: "0 4px 18px rgba(15,27,61,.06)" }}>
+      <div style={{ fontWeight: 800, marginBottom: 14 }}>Create Homework</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12 }}>
+        <label style={{ fontSize: 12, fontWeight: 700, color: C.sub }}>Batch<select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value, subject: "" })} style={{ display: "block", width: "100%", marginTop: 6, padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.light }}><option value="">Select batch…</option>{batches.map((b) => <option key={b.id} value={b.id}>{b.name || `Class ${b.cls}-${b.sec}`}</option>)}</select></label>
+        <label style={{ fontSize: 12, fontWeight: 700, color: C.sub }}>Teacher (optional)<select value={form.teacherId} onChange={(e) => setForm({ ...form, teacherId: e.target.value })} style={{ display: "block", width: "100%", marginTop: 6, padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.light }}><option value="">Admin / no teacher</option>{teachers.map((t) => <option key={t.id} value={t.id}>{t.name || t.tid || t.id}</option>)}</select></label>
+        <label style={{ fontSize: 12, fontWeight: 700, color: C.sub }}>Subject<select value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} style={{ display: "block", width: "100%", marginTop: 6, padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.light }}><option value="">Select subject…</option>{subjects.map((s) => <option key={s}>{s}</option>)}</select></label>
+        <label style={{ fontSize: 12, fontWeight: 700, color: C.sub }}>Due date<input type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} style={{ display: "block", width: "100%", marginTop: 6, padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.light }} /></label>
+      </div>
+      <label style={{ display: "block", marginTop: 12, fontSize: 12, fontWeight: 700, color: C.sub }}>Description<textarea value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} placeholder="Homework instructions…" style={{ display: "block", width: "100%", minHeight: 90, marginTop: 6, padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.light, resize: "vertical" }} /></label>
+      <label style={{ display: "block", marginTop: 12, fontSize: 12, fontWeight: 700, color: C.sub }}>Attach PDF (optional)<input type="file" accept="application/pdf,.pdf" onChange={(e) => handlePdf(e.target.files?.[0])} style={{ display: "block", marginTop: 7 }} />{form.pdfName && <span style={{ display: "block", marginTop: 5, color: C.green }}>✓ {form.pdfName}</span>}</label>
+      <button disabled={saving} onClick={() => void save()} style={{ marginTop: 16, border: 0, borderRadius: 11, padding: "11px 18px", background: C.accent, color: "#fff", fontWeight: 800, cursor: saving ? "wait" : "pointer", opacity: saving ? .65 : 1 }}>{saving ? "Saving…" : "Assign Homework"}</button>
+    </div>
+    <div style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 18, padding: 20 }}>
+      <div style={{ fontWeight: 800, marginBottom: 12 }}>Existing Homework ({homework.length})</div>
+      {loading ? <div style={{ color: C.sub }}>Loading…</div> : homework.length === 0 ? <div style={{ color: C.sub }}>No homework assigned yet.</div> : homework.map((h) => <div key={h.id} style={{ padding: "12px 0", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", gap: 12 }}><div><div style={{ fontWeight: 750 }}>{h.subject} · Class {h.cls}-{h.sec}</div><div style={{ fontSize: 12, color: C.sub }}>{h.desc}</div><div style={{ fontSize: 11, color: C.sub, marginTop: 4 }}>Due: {h.due}{h.pdfname ? ` · 📄 ${h.pdfname}` : ""}</div></div><button onClick={() => void remove(h.id)} style={{ alignSelf: "center", border: 0, borderRadius: 9, padding: "7px 10px", background: "#FEE2E2", color: C.red, cursor: "pointer" }}>🗑</button></div>)}
+    </div>
+  </div>;
+}
