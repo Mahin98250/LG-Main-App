@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
@@ -27,60 +27,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - name: Repair strict TypeScript errors
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        shell: python
-        run: |
-          from pathlib import Path
-
-          replacements = {
-              "src/admin/MaterialsDrive.tsx": [
-                  (
-                      'const subject = current && current.parent_id === sectionFolder.id ? current.name : "";',
-                      'const activeFolder = current;\n      const subject = activeFolder && activeFolder.parent_id === sectionFolder.id ? activeFolder.name : "";'
-                  ),
-                  ('folder_id: current.id,', 'folder_id: activeFolder.id,'),
-              ],
-              "src/admin/ReferenceAdminPanel.tsx": [
-                  ('(r: Row) => ReactNode?', '(r: Row) => ReactNode'),
-                  ('String(s.name || "?")[0]', 'String(s.name || "?").charAt(0)'),
-              ],
-              "src/admin/dashboard/AdminDashboard.tsx": [
-                  ('(s.name || "?")[0].toUpperCase()', '(s.name || "?").charAt(0).toUpperCase()'),
-              ],
-              "src/routes/app.tsx": [
-                  ('<PushNotificationPrompt />', '<PushNotificationPrompt user={user} />'),
-              ],
-              "src/lg/authscreens.tsx": [
-                  ('type Role = "teacher" | "student" | "parent";\n\n', 'type Role = "teacher" | "student" | "parent";\n\n'),
-                  ('export function RoleSelect({ onNext }: { onNext: (role: string) => void })', 'export function RoleSelect({ onNext }: { onNext: (role: Role) => void })'),
-              ],
-          }
-
-          changed = []
-          for filename, pairs in replacements.items():
-              path = Path(filename)
-              text = path.read_text()
-              original = text
-              for old, new in pairs:
-                  if old not in text:
-                      raise SystemExit(f"Expected text not found in {filename}: {old}")
-                  text = text.replace(old, new)
-              if text != original:
-                  path.write_text(text)
-                  changed.append(filename)
-
-          if changed:
-              print("Repaired:", ", ".join(changed))
-              import subprocess
-              subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
-              subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
-              subprocess.run(["git", "add", *changed], check=True)
-              subprocess.run(["git", "commit", "-m", "fix: resolve strict TypeScript errors"], check=True)
-              subprocess.run(["git", "push", "origin", "HEAD:main"], check=True)
-          else:
-              print("No TypeScript repairs were needed.")
 
       - name: Lint changed source files
         shell: bash
