@@ -3,11 +3,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { C, ROLES } from "@/lg/data";
 import { LGLogo, GLOBAL_CSS, Bubbles, BackBtn } from "@/lg/ui";
 
-export function RoleSelect({ onNext }: { onNext: (role: string) => void }) {
-  const navigate = useNavigate();
-  const [selected, setSelected] = useState<string>("");
+type Role = "teacher" | "student" | "parent";
 
-  const choose = (role: string) => {
+export function RoleSelect({ onNext }: { onNext: (role: Role) => void }) {
+  const navigate = useNavigate();
+  const [selected, setSelected] = useState<Role | "">("");
+
+  const choose = (role: Role) => {
     setSelected(role);
     onNext(role);
   };
@@ -45,7 +47,7 @@ export function RoleSelect({ onNext }: { onNext: (role: string) => void }) {
               <button
                 key={role.key}
                 type="button"
-                onClick={() => choose(role.key)}
+                onClick={() => choose(role.key as Role)}
                 style={{
                   width: "100%",
                   display: "flex",
