@@ -2,9 +2,8 @@ import React,{useEffect,useMemo,useState}from"react";
 import {C,uid}from"@/lg/data";
 import {supabase}from"@/lg/supabase";
 import {Card,Badge,Sec,GBtn,Shell,AppBar}from"@/lg/ui";
-import {NotifPanel,MessagingPanel}from"@/lg/panels";
+import {NotifPanel}from"@/lg/panels";
 import {THHome,THSchedule,THAttendance}from"@/lg/teacher";
-import {THMarks,THAnalytics}from"@/lg/marks";
 
 const todayISO=()=>new Date().toISOString().slice(0,10);
 const errText=e=>e instanceof Error?e.message:(e?.message||"Something went wrong. Please try again.");
@@ -49,9 +48,9 @@ export function T6Materials({teacher}){
 }
 
 export function TeacherApp({user,onLogout}){
- const [tab,setTab]=useState("home"),[showNotif,setShowNotif]=useState(false),[showMsg,setShowMsg]=useState(false),[teacher,setTeacher]=useState({id:user.ref,name:user.name,subject:"",classes:[]});
+ const [tab,setTab]=useState("home"),[showNotif,setShowNotif]=useState(false),[teacher,setTeacher]=useState({id:user.ref,name:user.name,subject:"",classes:[]});
  useEffect(()=>{let alive=true;void loadTeacherProfile(user.ref).then(t=>{if(alive&&t)setTeacher(t)}).catch(e=>console.error("Unable to load teacher profile:",e));return()=>{alive=false}},[user.ref]);
- const tabs=[{key:"home",icon:"🏠",label:"Home"},{key:"schedule",icon:"📅",label:"Schedule"},{key:"attendance",icon:"✅",label:"Attend."},{key:"homework",icon:"📝",label:"HW"},{key:"materials",icon:"📚",label:"Notes"},{key:"marks",icon:"📊",label:"Marks"},{key:"analytics",icon:"📈",label:"Analytics"}];
- const content=tab==="home"?<THHome teacher={teacher}/>:tab==="schedule"?<THSchedule teacher={teacher}/>:tab==="attendance"?<THAttendance teacher={teacher}/>:tab==="homework"?<T5Homework teacher={teacher}/>:tab==="materials"?<T6Materials teacher={teacher}/>:tab==="marks"?<THMarks teacher={teacher}/>:<THAnalytics teacher={teacher}/>;
- return <><Shell header={<AppBar name={user.name} role="teacher" userId={user.id} onLogout={onLogout} onNotif={()=>setShowNotif(true)} onMsg={()=>setShowMsg(true)}/>} tabs={tabs} activeTab={tab} setTab={setTab}>{content}</Shell>{showNotif&&<NotifPanel userId={user.id} onClose={()=>setShowNotif(false)}/>} {showMsg&&<MessagingPanel user={user} onClose={()=>setShowMsg(false)}/>}</>;
+ const tabs=[{key:"home",icon:"🏠",label:"Home"},{key:"schedule",icon:"📅",label:"Schedule"},{key:"attendance",icon:"✅",label:"Attend."},{key:"homework",icon:"📝",label:"HW"},{key:"materials",icon:"📚",label:"Notes"}];
+ const content=tab==="home"?<THHome teacher={teacher}/>:tab==="schedule"?<THSchedule teacher={teacher}/>:tab==="attendance"?<THAttendance teacher={teacher}/>:tab==="homework"?<T5Homework teacher={teacher}/>:<T6Materials teacher={teacher}/>;
+ return <><Shell header={<AppBar name={user.name} role="teacher" userId={user.id} onLogout={onLogout} onNotif={()=>setShowNotif(true)}/>} tabs={tabs} activeTab={tab} setTab={setTab}>{content}</Shell>{showNotif&&<NotifPanel userId={user.id} onClose={()=>setShowNotif(false)}/>}</>;
 }
