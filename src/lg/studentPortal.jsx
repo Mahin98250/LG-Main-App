@@ -1,5 +1,5 @@
 import React,{useEffect,useState}from"react";
-import {C,lsG}from"@/lg/data";
+import {C,gdb}from"@/lg/data";
 import {supabase}from"@/lg/supabase";
 import {Badge,Card,Sec,Shell,AppBar}from"@/lg/ui";
 import {NotifPanel}from"@/lg/panels";
@@ -8,7 +8,7 @@ const text=v=>v==null?"":String(v);
 async function queryStudentData(student){
   if(!student)return {timetable:[],attendance:[],homework:[],fees:[],announcements:[],exams:[],folders:[],materials:[]};
   const sid=text(student.sid||student.id),cls=text(student.cls),sec=text(student.sec),batch=text(student.batch_id||student.batchId);
-  const timetableQ=batch?supabase.from("timetable").select("id,cls,sec,subject,tid,day,slot,batchid,batchname").eq("batchid",batch).order("day").order("slot"):supabase.from("timetable").select("id,cls,sec,subject,tid,day,slot,batchid,batchname").eq("cls",cls).eq("sec",sec).order("day").order("slot");
+  const timetableQ=gdb("timetable").then(rows=>({data:(Array.isArray(rows)?rows:[]).filter(s=>batch&&s.batchId?String(s.batchId)===batch:(String(s.cls)===cls&&String(s.sec)===sec)),error:null})).catch(error=>({data:null,error}));
   const homeworkQ=batch?supabase.from("homework").select("id,cls,sec,subject,desc,given,due,tid,completedby,pdfname,pdfdata,batch_id,created_at").eq("batch_id",batch).order("created_at",{ascending:false}):supabase.from("homework").select("id,cls,sec,subject,desc,given,due,tid,completedby,pdfname,pdfdata,batch_id,created_at").eq("cls",cls).eq("sec",sec).order("created_at",{ascending:false});
   const [tt,att,hw,fees,ann,exams,folders,materials]=await Promise.all([
     timetableQ,
