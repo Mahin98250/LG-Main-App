@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentUser, signOut, onAuthStateChange } from "@/lg/auth";
 import { clearCache, hydrateForRole } from "@/lg/data";
-import { AdminLogin } from "@/admin/ReferenceAdminPanel";
+import AdminLogin from "@/admin/auth/AdminLogin";
 import { AdminWithDrive } from "@/admin/AdminWithDrive";
 
 export type AdminRouteUser = { id: string; name: string; phone: string; role: string; ref: string | null };
@@ -81,7 +81,7 @@ function AdminRoute() {
   }, [syncAdmin, user]);
 
   if (checking && !user) return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Poppins,sans-serif" }}>Loading admin portal…</div>;
-  if (!user) return <AdminLogin onSuccess={(admin) => { setUser(admin); void syncAdmin(admin as AdminRouteUser); }} onForgotPassword={() => navigate({ to: "/reset-password" })} />;
+  if (!user) return <AdminLogin onAuthenticated={() => { void load(); }} onForgotPassword={() => navigate({ to: "/reset-password" })} />;
   return <>
     <AdminWithDrive user={user} onLogout={async () => { clearCache(); await signOut(); setUser(null); navigate({ to: "/", replace: true }); }} />
     {syncing && <div aria-live="polite" style={{ position: "fixed", right: 14, bottom: 14, zIndex: 999, background: "#0F1B3D", color: "#fff", borderRadius: 14, padding: "10px 14px", fontSize: 12, fontWeight: 700, boxShadow: "0 8px 24px rgba(15,27,61,.25)" }}>Syncing data…</div>}
