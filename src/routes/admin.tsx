@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentUser, signOut, onAuthStateChange } from "@/lg/auth";
 import { clearCache, hydrateForRole } from "@/lg/data";
@@ -9,7 +9,6 @@ export type AdminRouteUser = { id: string; name: string; phone: string; role: st
 export const Route = createFileRoute("/admin")({ ssr: false, component: AdminRoute });
 
 function AdminRoute() {
-  const navigate = useNavigate();
   const [user, setUser] = useState<AdminRouteUser | null>(null);
   const [checking, setChecking] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -20,28 +19,15 @@ function AdminRoute() {
     if (syncLock.current) return;
     syncLock.current = true;
     setSyncing(true);
-    try {
-      await hydrateForRole("admin");
-      setUser(current);
-      lastSync.current = Date.now();
-    } catch (error) {
-      console.warn("Admin background sync skipped:", error instanceof Error ? error.message : error);
-    } finally {
-      syncLock.current = false;
-      setSyncing(false);
-      setChecking(false);
-    }
+    try { await hydrateForRole("admin"); setUser(current); lastSync.current = Date.now(); }
+    catch (error) { console.warn("Admin background sync skipped:", error instanceof Error ? error.message : error); }
+    finally { syncLock.current = false; setSyncing(false); setChecking(false); }
   }, []);
 
   const load = useCallback(async () => {
     setChecking(true);
     const current = (await getCurrentUser()) as AdminRouteUser | null;
-    if (!current || current.role !== "admin") {
-      clearCache();
-      setUser(null);
-      setChecking(false);
-      return;
-    }
+    if (!current || current.role !== "admin") { clearCache(); setUser(null); setChecking(false); return; }
     await syncAdmin(current);
   }, [syncAdmin]);
 
@@ -49,15 +35,8 @@ function AdminRoute() {
 
   useEffect(() => {
     const { data } = onAuthStateChange((event: string, nextUser: AdminRouteUser | null) => {
-      if (!nextUser || nextUser.role !== "admin") {
-        clearCache();
-        setUser(null);
-        setChecking(false);
-        return;
-      }
-      if (["SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event)) {
-        void syncAdmin(nextUser);
-      }
+      if (!nextUser || nextUser.role !== "admin") { clearCache(); setUser(null); setChecking(false); return; }
+      if (["SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event)) void syncAdmin(nextUser);
     });
     return () => { data.subscription.unsubscribe(); };
   }, [syncAdmin]);
@@ -74,16 +53,10 @@ function AdminRoute() {
     };
     document.addEventListener("visibilitychange", refreshWhenVisible);
     window.addEventListener("focus", refreshWhenVisible);
-    return () => {
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-      window.removeEventListener("focus", refreshWhenVisible);
-    };
+    return () => { document.removeEventListener("visibilitychange", refreshWhenVisible); window.removeEventListener("focus", refreshWhenVisible); };
   }, [syncAdmin, user]);
 
   if (checking && !user) return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Poppins,sans-serif" }}>Loading admin portal…</div>;
-  if (!user) return <AdminLogin onSuccess={(admin) => { setUser(admin); void syncAdmin(admin); }} onForgotPassword={() => navigate({ to: "/reset-password" })} />;
-  return <>
-    <AdminWithDrive user={user} onLogout={async () => { clearCache(); await signOut(); setUser(null); navigate({ to: "/", replace: true }); }} />
-    {syncing && <div aria-live="polite" style={{ position: "fixed", right: 14, bottom: 14, zIndex: 999, background: "#0F1B3D", color: "#fff", borderRadius: 14, padding: "10px 14px", fontSize: 12, fontWeight: 700, boxShadow: "0 8px 24px rgba(15,27,61,.25)" }}>Syncing data…</div>}
-  </>;
+  if (!user) return <AdminLogin onSuccess={(admin) => { setUser(admin); void syncAdmin(admin as AdminRouteUser); }} />;
+  return <><AdminWithDrive user={user} onLogout={async () => { clearCache(); await signOut(); setUser(null); window.location.assign("/"); }} />{syncing && <div aria-live="polite" style={{ position: "fixed", right: 14, bottom: 14, zIndex: 999, background: "#0F1B3D", color: "#fff", borderRadius: 14, padding: "10px 14px", fontSize: 12, fontWeight: 700 }}>Syncing data…</div>}</>;
 }
