@@ -1,0 +1,1 @@
+Controlled production-error repair pass. No destructive data changes, auth rewrites, or feature removals. Verify lint, typecheck, production build, and production checks before merge.
