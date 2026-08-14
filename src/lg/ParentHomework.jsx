@@ -1,5 +1,6 @@
 import React,{useEffect,useState}from"react";
-import{C,Card,Sec,Badge}from"@/lg/ui";
+import{Card,Sec,Badge}from"@/lg/ui";
+import{C}from"@/lg/data";
 import{supabase}from"@/lg/supabase";
 
 const daysLeft=due=>{if(!due)return null;const d=new Date(`${due}T23:59:59`),n=new Date();const diff=Math.ceil((d-n)/86400000);return diff>1?`${diff} days left`:diff===1?"1 day left":diff===0?"Due today":`${Math.abs(diff)} day${Math.abs(diff)===1?"":"s"} overdue`};
