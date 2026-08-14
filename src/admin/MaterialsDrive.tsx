@@ -3,16 +3,35 @@ import { supabase } from "@/lg/supabase";
 
 type Folder = { id: string; name: string; parent_id: string | null; created_at: string };
 type Batch = { id: string; name: string; cls: string | null; sec: string | null; status: string | null };
-type Material = { id: string; title?: string; name?: string; folder_id: string | null; batch_id?: string | null; storage_path?: string | null; file_size?: number | null; mime_type?: string | null; created_at: string };
+type Material = { id: string; title?: string; name?: string; folder_id: string | null; batch_id?: string | null; storage_path?: string | null; file_size?: number | null; mime_type?: string | null; created_at: string; subject?: string | null; cls?: string | null; sec?: string | null };
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const ACCEPT = ".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg";
+const SUBJECTS_BY_CLASS: Record<string, string[]> = {
+  "9": ["Science", "English", "Maths", "Social Studies"],
+  "10": ["Science", "English", "Maths", "Social Studies"],
+  "11": ["Accountancy", "Business Studies", "Economics", "Applied Mathematics", "Informatics Practices", "Entrepreneurship", "Physical Education"],
+  "12": ["Accountancy", "Business Studies", "Economics", "Applied Mathematics", "Informatics Practices", "Entrepreneurship", "Physical Education"],
+};
 
 function bytes(n: number | null | undefined) {
   if (!n) return "—";
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function className(batch: Batch | undefined) {
+  if (!batch) return "";
+  return String(batch.cls || batch.name || "").trim();
+}
+
+function sectionName(batch: Batch | undefined) {
+  return String(batch?.sec || "").trim();
+}
+
+function sameText(a: unknown, b: unknown) {
+  return String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
 }
 
 export function MaterialsDrive() {
@@ -29,20 +48,32 @@ export function MaterialsDrive() {
   const [rename, setRename] = useState<Folder | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
+  const selectedBatch = useMemo(() => batches.find((b) => b.id === selectedBatchId), [batches, selectedBatchId]);
+  const currentChildren = useMemo(() => folders.filter((f) => f.parent_id === (current?.id ?? null)), [folders, current]);
+  const currentFiles = useMemo(() => files.filter((f) => f.folder_id === (current?.id ?? null)), [files, current]);
+  const breadcrumbs = useMemo(() => {
+    const out: Folder[] = [];
+    let id = current?.id;
+    while (id) {
+      const folder = folders.find((x) => x.id === id);
+      if (!folder) break;
+      out.unshift(folder);
+      id = folder.parent_id ?? undefined;
+    }
+    return out;
+  }, [current, folders]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
 
     const [folderResult, materialResult, batchResult] = await Promise.all([
       supabase.from("material_folders").select("id,name,parent_id,created_at").order("name"),
-      supabase.from("materials").select("id,title,name,folder_id,batch_id,storage_path,file_size,mime_type,created_at").order("created_at", { ascending: false }),
+      supabase.from("materials").select("id,title,name,folder_id,batch_id,storage_path,file_size,mime_type,created_at,subject,cls,sec").order("created_at", { ascending: false }),
       supabase.from("batches").select("id,name,cls,sec,status").order("name"),
     ]);
 
     const errors: string[] = [];
-
-    // Folders are the primary Study Materials workspace. Keep them independent
-    // from material/batch failures so one secondary request can never blank Drive.
     if (folderResult.error) errors.push(`Folders: ${folderResult.error.message}`);
     else setFolders(folderResult.data || []);
 
@@ -64,25 +95,51 @@ export function MaterialsDrive() {
     void load();
   }, [load]);
 
-  const visibleFolders = useMemo(
-    () => folders.filter((f) => f.parent_id === (current?.id ?? null)),
-    [folders, current],
-  );
-  const visibleFiles = useMemo(
-    () => files.filter((f) => f.folder_id === (current?.id ?? null)),
-    [files, current],
-  );
-  const breadcrumbs = useMemo(() => {
-    const out: Folder[] = [];
-    let id = current?.id;
-    while (id) {
-      const folder = folders.find((x) => x.id === id);
-      if (!folder) break;
-      out.unshift(folder);
-      id = folder.parent_id ?? undefined;
+  async function ensureFolder(name: string, parentId: string | null) {
+    const wanted = name.trim();
+    if (!wanted) throw new Error("Folder name is required.");
+
+    const existing = folders.find((f) => f.parent_id === parentId && sameText(f.name, wanted));
+    if (existing) return existing;
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user) throw new Error("Your administrator session has expired. Please sign in again.");
+
+    const { data, error: insertError } = await supabase
+      .from("material_folders")
+      .insert({ name: wanted, parent_id: parentId, created_by: authData.user.id })
+      .select("id,name,parent_id,created_at")
+      .single();
+    if (insertError) throw insertError;
+    return data as Folder;
+  }
+
+  async function openBatchWorkspace(batchId: string) {
+    const batch = batches.find((b) => b.id === batchId);
+    if (!batch) {
+      setError("Select a valid batch first.");
+      return;
     }
-    return out;
-  }, [current, folders]);
+
+    setBusy(true);
+    setError("");
+    try {
+      const classLabel = className(batch) || batch.name;
+      const sectionLabel = sectionName(batch);
+      const classFolder = await ensureFolder(classLabel, null);
+      const sectionFolder = sectionLabel ? await ensureFolder(`Section ${sectionLabel}`, classFolder.id) : classFolder;
+      const subjectFolders = SUBJECTS_BY_CLASS[classLabel] || [];
+      for (const subject of subjectFolders) {
+        await ensureFolder(subject, sectionFolder.id);
+      }
+      await load();
+      setCurrent(sectionFolder);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to prepare the class workspace.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function createFolder() {
     const name = folderName.trim();
@@ -90,22 +147,10 @@ export function MaterialsDrive() {
     setBusy(true);
     setError("");
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError || !authData.user) {
-        setError("Your administrator session has expired. Please sign in again.");
-        return;
-      }
-      const { error: e } = await supabase.from("material_folders").insert({
-        name,
-        parent_id: current?.id ?? null,
-        created_by: authData.user.id,
-      });
-      if (e) setError(e.message);
-      else {
-        setFolderName("");
-        setNewFolder(false);
-        await load();
-      }
+      await ensureFolder(name, current?.id ?? null);
+      setFolderName("");
+      setNewFolder(false);
+      await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to create the folder.");
     } finally {
@@ -200,7 +245,12 @@ export function MaterialsDrive() {
       return;
     }
     if (!selectedBatchId) {
-      setError("Select a batch before uploading so the correct students and parents receive the notification.");
+      setError("Select a batch before uploading so the correct students and parents receive the material.");
+      return;
+    }
+    const batch = selectedBatch;
+    if (!batch) {
+      setError("Select a valid batch before uploading.");
       return;
     }
 
@@ -211,6 +261,18 @@ export function MaterialsDrive() {
     setError("");
 
     try {
+      const classLabel = className(batch) || batch.name;
+      const sectionLabel = sectionName(batch);
+      const classFolder = await ensureFolder(classLabel, null);
+      const sectionFolder = sectionLabel ? await ensureFolder(`Section ${sectionLabel}`, classFolder.id) : classFolder;
+      const subject = current && current.parent_id === sectionFolder.id ? current.name : "";
+      if (!subject) {
+        await load();
+        setCurrent(sectionFolder);
+        setError("Open a subject folder before uploading a material.");
+        return;
+      }
+
       const { error: up } = await supabase.storage
         .from("materials")
         .upload(path, file, { upsert: false, contentType: file.type || undefined });
@@ -222,8 +284,11 @@ export function MaterialsDrive() {
       const { error: ins } = await supabase.from("materials").insert({
         title: safe,
         name: safe,
-        folder_id: current?.id ?? null,
+        folder_id: current.id,
         batch_id: selectedBatchId,
+        cls: batch.cls || null,
+        sec: batch.sec || null,
+        subject,
         storage_path: path,
         file_size: file.size,
         mime_type: file.type || null,
@@ -290,6 +355,8 @@ export function MaterialsDrive() {
     }
   }
 
+  const atSubject = Boolean(current && current.parent_id && folders.some((f) => f.id === current.parent_id && f.parent_id));
+
   return (
     <div
       className="drive-wrap"
@@ -299,7 +366,7 @@ export function MaterialsDrive() {
         <div>
           <h2 style={{ margin: 0 }}>📚 Study Materials</h2>
           <p style={{ margin: "5px 0 0", color: "#64748B", fontSize: 13 }}>
-            Organize notes, PDFs and presentations like Google Drive. Maximum file size: 50 MB.
+            Class → section → subject folders keep every material in the right place.
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -311,6 +378,9 @@ export function MaterialsDrive() {
               </option>
             ))}
           </select>
+          <button type="button" disabled={busy || !selectedBatchId} onClick={() => void openBatchWorkspace(selectedBatchId)} style={{ ...btn, opacity: selectedBatchId ? 1 : 0.55 }}>
+            ✨ Open Class
+          </button>
           <button type="button" disabled={busy} onClick={() => setNewFolder(true)} style={btn}>📁 New Folder</button>
           <label style={{ ...btn, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}>
             ⬆ Upload
@@ -327,6 +397,13 @@ export function MaterialsDrive() {
         ))}
       </div>
 
+      {selectedBatch && (
+        <div style={hint}>
+          <b>{className(selectedBatch) || selectedBatch.name}</b>{sectionName(selectedBatch) ? ` · Section ${sectionName(selectedBatch)}` : ""}
+          {atSubject ? <span style={{ marginLeft: 8, color: "#16A34A" }}>• Ready to upload into <b>{current?.name}</b></span> : <span style={{ marginLeft: 8, color: "#92400E" }}>• Open a subject folder to upload</span>}
+        </div>
+      )}
+
       {error && (
         <div style={{ background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA", padding: 12, borderRadius: 12, marginBottom: 14 }}>
           {error}
@@ -338,7 +415,7 @@ export function MaterialsDrive() {
           <div style={empty}>Loading…</div>
         ) : (
           <>
-            {visibleFolders.map((f) => (
+            {currentChildren.map((f) => (
               <div key={f.id} style={item} onDoubleClick={() => setCurrent(f)}>
                 <button type="button" onClick={() => setCurrent(f)} style={icon}>📁</button>
                 <div style={{ minWidth: 0, flex: 1 }}>
@@ -349,20 +426,20 @@ export function MaterialsDrive() {
                 <button type="button" title="Delete" disabled={busy} onClick={() => void deleteFolder(f)} style={more}>🗑</button>
               </div>
             ))}
-            {visibleFiles.map((f) => (
+            {currentFiles.map((f) => (
               <div key={f.id} style={item}>
                 <div style={{ ...icon, fontSize: 26 }}>{f.mime_type?.includes("powerpoint") ? "📊" : f.mime_type?.includes("pdf") ? "📄" : "📎"}</div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name || f.title || "Untitled"}</b>
-                  <span style={meta}>{bytes(f.file_size)}</span>
+                  <span style={meta}>{f.subject ? `${f.subject} · ` : ""}{bytes(f.file_size)}</span>
                 </div>
                 <button type="button" title="Download" disabled={busy} onClick={() => void download(f)} style={more}>⬇</button>
                 <button type="button" title="Delete" disabled={busy} onClick={() => void deleteFile(f)} style={more}>🗑</button>
               </div>
             ))}
-            {!visibleFolders.length && !visibleFiles.length && (
+            {!currentChildren.length && !currentFiles.length && (
               <div style={{ ...empty, gridColumn: "1/-1" }}>
-                This folder is empty. Create a folder or upload a file.
+                {current ? "This folder is empty." : "Choose a batch and open its class workspace to see Class → Section → Subject folders."}
               </div>
             )}
           </>
@@ -406,6 +483,7 @@ const crumb: React.CSSProperties = { border: 0, background: "transparent", color
 const more: React.CSSProperties = { border: 0, background: "transparent", cursor: "pointer", padding: 7, borderRadius: 8 };
 const icon: React.CSSProperties = { border: 0, background: "transparent", cursor: "pointer", fontSize: 30, padding: 0 };
 const meta: React.CSSProperties = { color: "#94A3B8", fontSize: 11 };
+const hint: React.CSSProperties = { background: "#EEF2FF", border: "1px solid #C7D2FE", color: "#3730A3", borderRadius: 14, padding: "10px 12px", marginBottom: 14, fontSize: 12 };
 const item: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, padding: 14, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 16, boxShadow: "0 4px 18px rgba(15,27,61,.06)" };
 const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 };
 const empty: React.CSSProperties = { padding: 50, textAlign: "center", color: "#64748B", background: "#fff", border: "1px dashed #CBD5E1", borderRadius: 16 };
