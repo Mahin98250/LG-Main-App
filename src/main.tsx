@@ -38,11 +38,17 @@ if (!root) {
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, {
-      scope: import.meta.env.BASE_URL,
-    }).catch((error) => {
-      console.warn("Learner's Guide: service worker registration failed", error);
-    });
+    void (async () => {
+      try {
+        const registration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, {
+          scope: import.meta.env.BASE_URL,
+          updateViaCache: "none",
+        });
+        await registration.update();
+      } catch (error) {
+        console.warn("Learner's Guide: service worker registration failed", error);
+      }
+    })();
   });
 }
 
