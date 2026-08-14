@@ -5,6 +5,7 @@ import { getRouter } from "./router";
 import InstallAppPrompt from "./InstallAppPrompt";
 import StartupSplash from "./StartupSplash";
 import DatabaseActivityOverlay, { emitDatabaseActivity } from "./DatabaseActivityOverlay";
+import MobileBackNavigation from "./MobileBackNavigation";
 import "./mobile.css";
 
 const originalFetch = window.fetch.bind(window);
@@ -58,5 +59,6 @@ ReactDOM.createRoot(root).render(
     <RouterProvider router={router} />
     <InstallAppPrompt />
     <DatabaseActivityOverlay />
+    <MobileBackNavigation />
   </React.StrictMode>,
 );
