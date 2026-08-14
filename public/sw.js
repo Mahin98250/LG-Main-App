@@ -1,4 +1,4 @@
-const CACHE = "learners-guide-v9";
+const CACHE = "learners-guide-v10";
 const APP_SHELL = ["./", "./manifest.webmanifest", "./pwa-icon.svg"];
 const APP_SCOPE = self.registration?.scope || self.location.href;
 
@@ -70,7 +70,7 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.includes("/rest/v1/") || url.pathname.includes("/auth/v1/") || url.pathname.includes("/functions/v1/")) return;
 
   event.respondWith(
-    fetch(request)
+    fetch(request, { cache: "no-cache" })
       .then((response) => {
         if (response.ok && response.type === "basic") {
           const copy = response.clone();
