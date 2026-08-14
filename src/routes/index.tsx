@@ -1,11 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getCurrentUser } from "@/lg/auth";
-import { RoleSelect } from "@/lg/authscreens";
+import { RoleSelect, type Role } from "@/lg/authscreens";
 
 const title = "Learner's Guide — School App for Teachers, Students & Parents";
 const description = "Learner's Guide connects classrooms: timetables, attendance, homework, notes, marks and fees for teachers, students and parents in one app.";
-type Role = "teacher" | "student" | "parent";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title }, { name: "description", content: description }, { property: "og:title", content: title }, { property: "og:description", content: description }] }),
