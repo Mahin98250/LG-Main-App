@@ -45,3 +45,5 @@ jobs:
           git add src/admin/MaterialsDrive.tsx src/lg/parentWorkflows.jsx src/lg/studentPortal.jsx
           git commit -m "style: format study material portal files"
           git push origin HEAD:feat/standard-based-material-access
+
+# Temporary formatter; removed after PR 26 is clean.
