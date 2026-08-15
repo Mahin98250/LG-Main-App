@@ -11,12 +11,51 @@ import { AdminDashboardShell } from "@/admin/AdminDashboardShell";
 import { AdminProfileAnalytics } from "@/admin/AdminAnalytics";
 import { FEATURE_FLAGS } from "@/lg/featureFlags";
 
-type AdminUser = { id: string; name: string; phone: string; role: string; ref: string | null };
-type View = "panel" | "drive" | "dashboard" | "profiles" | "students" | "teachers" | "batches" | "announcements" | "homework" | "recovery";
+type AdminUser = {
+  id: string;
+  name: string;
+  phone: string;
+  role: string;
+  ref: string | null;
+};
+
+type View =
+  | "panel"
+  | "drive"
+  | "dashboard"
+  | "profiles"
+  | "students"
+  | "teachers"
+  | "batches"
+  | "announcements"
+  | "homework"
+  | "recovery";
 
 const Header = ({ title, onBack }: { title: string; onBack: () => void }) => (
-  <div style={{ padding: "12px 18px", background: "#0F1B3D", display: "flex", alignItems: "center", gap: 12 }}>
-    <button type="button" onClick={onBack} style={{ border: 0, borderRadius: 10, padding: "9px 13px", background: "#4361EE", color: "#fff", fontWeight: 800, cursor: "pointer" }}>← Admin Dashboard</button>
+  <div
+    style={{
+      padding: "12px 18px",
+      background: "#0F1B3D",
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+    }}
+  >
+    <button
+      type="button"
+      onClick={onBack}
+      style={{
+        border: 0,
+        borderRadius: 10,
+        padding: "9px 13px",
+        background: "#4361EE",
+        color: "#fff",
+        fontWeight: 800,
+        cursor: "pointer",
+      }}
+    >
+      ← Admin Dashboard
+    </button>
     <span style={{ color: "#fff", fontWeight: 800 }}>{title}</span>
   </div>
 );
@@ -35,7 +74,9 @@ function useRemovedFeatureGuard(view: View) {
       if (!FEATURE_FLAGS.studentResults) blocked.push("Student Results");
       document.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
         const text = (button.textContent || "").trim();
-        if (blocked.some((label) => text === label || text.endsWith(label))) button.remove();
+        if (blocked.some((label) => text === label || text.endsWith(label))) {
+          button.remove();
+        }
       });
     };
     prune();
@@ -56,27 +97,152 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
       const button = target?.closest("button");
       if (!button) return;
       const text = (button.textContent || "").trim();
-      if (text === "🏠 Dashboard" || text === "Dashboard") { event.preventDefault(); event.stopPropagation(); setView("dashboard"); return; }
-      if (text.includes("Search Profiles")) { event.preventDefault(); event.stopPropagation(); setView("profiles"); return; }
-      if (text.includes("Study Materials")) { event.preventDefault(); event.stopPropagation(); setView("drive"); return; }
-      if (text === "🎓 Students" || text === "Students") { event.preventDefault(); event.stopPropagation(); setView("students"); return; }
-      if (text === "👨‍🏫 Teachers" || text === "Teachers") { event.preventDefault(); event.stopPropagation(); setView("teachers"); return; }
-      if (text.includes("Batches & Timetable")) { event.preventDefault(); event.stopPropagation(); setView("batches"); return; }
-      if (text.includes("Announcements")) { event.preventDefault(); event.stopPropagation(); setView("announcements"); return; }
-      if (text.includes("Homework")) { event.preventDefault(); event.stopPropagation(); setView("homework"); return; }
-      if (text.includes("User Accounts")) { event.preventDefault(); event.stopPropagation(); setView("recovery"); }
+      if (text === "🏠 Dashboard" || text === "Dashboard") {
+        event.preventDefault();
+        event.stopPropagation();
+        setView("dashboard");
+        return;
+      }
+      if (text.includes("Search Profiles")) {
+        event.preventDefault();
+        event.stopPropagation();
+        setView("profiles");
+        return;
+      }
+      if (text.includes("Study Materials")) {
+        event.preventDefault();
+        event.stopPropagation();
+        setView("drive");
+        return;
+      }
+      if (text === "🎓 Students" || text === "Students") {
+        event.preventDefault();
+        event.stopPropagation();
+        setView("students");
+        return;
+      }
+      if (text === "👨‍🏫 Teachers" || text === "Teachers") {
+        event.preventDefault();
+        event.stopPropagation();
+        setView("teachers");
+        return;
+      }
+      if (text.includes("Batches & Timetable")) {
+        event.preventDefault();
+        event.stopPropagation();
+        setView("batches");
+        return;
+      }
+      if (text.includes("Announcements")) {
+        event.preventDefault();
+        event.stopPropagation();
+        setView("announcements");
+        return;
+      }
+      if (text.includes("Homework")) {
+        event.preventDefault();
+        event.stopPropagation();
+        setView("homework");
+        return;
+      }
+      if (text.includes("User Accounts")) {
+        event.preventDefault();
+        event.stopPropagation();
+        setView("recovery");
+      }
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
   }, [view]);
 
-  if (view === "dashboard") return <SafeSection title="Dashboard Analytics"><AdminDashboardShell onNavigate={(next) => setView(next)} /></SafeSection>;
-  if (view === "profiles") return <SafeSection title="Profile Analytics"><AdminProfileAnalytics onBack={() => setView("dashboard")} /></SafeSection>;
-  if (view === "drive") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Study Materials · Drive" onBack={() => setView("dashboard")} /><SafeSection title="Study Materials"><MaterialsDrive /></SafeSection></div>;
-  if (view === "students" || view === "teachers") { const label = view === "students" ? "Students" : "Teachers"; return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title={`${label} · Production Management`} onBack={() => setView("dashboard")} /><SafeSection title={label}><AdminRecordsPage kind={view} /></SafeSection></div>; }
-  if (view === "batches") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Batches & Timetable" onBack={() => setView("dashboard")} /><SafeSection title="Batches & Timetable"><BatchesTimetablePage /></SafeSection></div>;
-  if (view === "announcements") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Announcements" onBack={() => setView("dashboard")} /><SafeSection title="Announcements"><AnnouncementsPage /></SafeSection></div>;
-  if (view === "homework") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Homework · Production Management" onBack={() => setView("dashboard")} /><SafeSection title="Homework"><HomeworkPage /></SafeSection></div>;
-  if (view === "recovery") return <div style={{ minHeight: "100vh", background: "#F0F4FF" }}><Header title="Password Recovery · Account Security" onBack={() => setView("dashboard")} /><SafeSection title="User Accounts"><RecoverySettingsPage /></SafeSection></div>;
+  if (view === "dashboard") {
+    return (
+      <SafeSection title="Dashboard Analytics">
+        <AdminDashboardShell onNavigate={(next) => setView(next)} />
+      </SafeSection>
+    );
+  }
+
+  if (view === "profiles") {
+    return (
+      <SafeSection title="Profile Analytics">
+        <AdminProfileAnalytics onBack={() => setView("dashboard")} />
+      </SafeSection>
+    );
+  }
+
+  if (view === "drive") {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
+        <Header title="Study Materials · Drive" onBack={() => setView("dashboard")} />
+        <SafeSection title="Study Materials">
+          <MaterialsDrive />
+        </SafeSection>
+      </div>
+    );
+  }
+
+  if (view === "students" || view === "teachers") {
+    const label = view === "students" ? "Students" : "Teachers";
+    return (
+      <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
+        <Header
+          title={`${label} · Production Management`}
+          onBack={() => setView("dashboard")}
+        />
+        <SafeSection title={label}>
+          <AdminRecordsPage kind={view} />
+        </SafeSection>
+      </div>
+    );
+  }
+
+  if (view === "batches") {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
+        <Header title="Batches & Timetable" onBack={() => setView("dashboard")} />
+        <SafeSection title="Batches & Timetable">
+          <BatchesTimetablePage />
+        </SafeSection>
+      </div>
+    );
+  }
+
+  if (view === "announcements") {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
+        <Header title="Announcements" onBack={() => setView("dashboard")} />
+        <SafeSection title="Announcements">
+          <AnnouncementsPage />
+        </SafeSection>
+      </div>
+    );
+  }
+
+  if (view === "homework") {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
+        <Header title="Homework · Production Management" onBack={() => setView("dashboard")} />
+        <SafeSection title="Homework">
+          <HomeworkPage />
+        </SafeSection>
+      </div>
+    );
+  }
+
+  if (view === "recovery") {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
+        <Header
+          title="Password Recovery · Account Security"
+          onBack={() => setView("dashboard")}
+        />
+        <SafeSection title="User Accounts">
+          <RecoverySettingsPage />
+        </SafeSection>
+      </div>
+    );
+  }
+
   return <ReferenceAdminPanel user={user} onLogout={onLogout} />;
 }
