@@ -46,3 +46,4 @@ jobs:
           git push origin HEAD:feat/standard-based-material-access
 
 # Temporary formatter; removed after PR 26 is clean.
+# Trigger another synchronize event after the main formatter workflow update.
