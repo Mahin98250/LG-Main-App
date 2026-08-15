@@ -17,13 +17,12 @@ async function queryStudentData(student){
     supabase.from("fees").select("id,sid,desc,amount,due,status,paidon,created_at").eq("sid",sid).order("created_at",{ascending:false}),
     supabase.from("announcements").select("id,title,desc,date,target,created_at").in("target",["all",cls,sec,`${cls}-${sec}`]).order("created_at",{ascending:false}),
     supabase.from("examschedule").select("id,title,subject,cls,sec,date,starttime,endtime,venue,syllabus,totalmarks,createdby,startTime,endTime,totalMarks").eq("cls",cls).eq("sec",sec).order("date"),
-    supabase.from("material_folders").select("id,name,parent_id,created_at").order("name"),
+    supabase.from("material_folders").select("id,name,parent_id,created_at,access_standards").order("name"),
     supabase.from("materials").select("id,title,name,folder_id,batch_id,storage_path,file_size,mime_type,pdfdata,pdfname,desc,subject,created_at,cls,sec").order("created_at",{ascending:false})
   ]);
   const errors=[tt,att,hw,fees,ann,exams,folders,materials].filter(r=>r.error);
   if(errors.length)throw new Error(errors.map(r=>r.error.message).join("; "));
-  const materialsData=(materials.data||[]).filter(m=>{const mb=text(m.batch_id),mc=text(m.cls),ms=text(m.sec);return(!mb||mb===batch)&&(!mc||mc===cls)&&(!ms||ms===sec)});
-  return {timetable:tt.data||[],attendance:att.data||[],homework:hw.data||[],fees:fees.data||[],announcements:ann.data||[],exams:exams.data||[],folders:folders.data||[],materials:materialsData};
+  return {timetable:tt.data||[],attendance:att.data||[],homework:hw.data||[],fees:fees.data||[],announcements:ann.data||[],exams:exams.data||[],folders:folders.data||[],materials:materials.data||[]};
 }
 async function getHomeworkFile(id){
   const {data,error}=await supabase.functions.invoke("homework-file",{body:{id},responseType:"blob"});
