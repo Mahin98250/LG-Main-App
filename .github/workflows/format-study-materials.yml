@@ -4,12 +4,16 @@ on:
   push:
     branches:
       - feat/standard-based-material-access
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   format:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
