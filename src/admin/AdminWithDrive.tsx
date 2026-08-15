@@ -186,10 +186,7 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
     const label = view === "students" ? "Students" : "Teachers";
     return (
       <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
-        <Header
-          title={`${label} · Production Management`}
-          onBack={() => setView("dashboard")}
-        />
+        <Header title={`${label} · Production Management`} onBack={() => setView("dashboard")} />
         <SafeSection title={label}>
           <AdminRecordsPage kind={view} />
         </SafeSection>
@@ -233,10 +230,7 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
   if (view === "recovery") {
     return (
       <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
-        <Header
-          title="Password Recovery · Account Security"
-          onBack={() => setView("dashboard")}
-        />
+        <Header title="Password Recovery · Account Security" onBack={() => setView("dashboard")} />
         <SafeSection title="User Accounts">
           <RecoverySettingsPage />
         </SafeSection>
