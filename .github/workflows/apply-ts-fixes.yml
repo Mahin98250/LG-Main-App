@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   fix:
+    if: github.event.head_commit.message == 'ci: fix remaining strict indexing error'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -34,6 +35,7 @@ jobs:
           replace('src/admin/MaterialsDrive.tsx', r'folder_id: current\.id,', 'folder_id: current?.id ?? null,')
           replace('src/admin/ReferenceAdminPanel.tsx', r'\(r: Row\) => ReactNode\?', '(r: Row) => ReactNode')
           replace('src/admin/ReferenceAdminPanel.tsx', r'String\(s\.name \|\| "\?"\)\[0\]', 'String(s.name || "?").charAt(0)')
+          replace('src/admin/ReferenceAdminPanel.tsx', r'\(s\.name \|\| "\?"\)\[0\]', '(s.name || "?").charAt(0)')
           replace('src/admin/dashboard/AdminDashboard.tsx', r'\(s\.name \|\| "\?"\)\[0\]\.toUpperCase\(\)', '(s.name || "?").charAt(0).toUpperCase()')
           replace('src/routes/app.tsx', r'<PushNotificationPrompt />', '<PushNotificationPrompt user={user} />')
           replace('src/lg/authscreens.tsx', r'(?m)^type Role = "teacher" \| "student" \| "parent";$', 'export type Role = "teacher" | "student" | "parent";')
