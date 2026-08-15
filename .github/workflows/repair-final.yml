@@ -1,0 +1,49 @@
+name: Repair all TypeScript baseline errors
+
+on:
+  push:
+    branches: [fix/typescript-cleanup]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Apply all source fixes
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          def edit(name, fn):
+              p = Path(name)
+              s = p.read_text(encoding='utf-8')
+              p.write_text(fn(s), encoding='utf-8')
+
+          edit('src/admin/MaterialsDrive.tsx', lambda s: s.replace('folder_id: current.id,', 'folder_id: current?.id ?? null,'))
+          edit('src/admin/ReferenceAdminPanel.tsx', lambda s: re.sub(r'\(r: Row\) => ReactNode\?', '(r: Row) => ReactNode', s))
+          edit('src/admin/ReferenceAdminPanel.tsx', lambda s: re.sub(r'String\(s\.name \|\| "\?"\)\[0\]', 'String(s.name || "?").charAt(0)', s))
+          edit('src/admin/ReferenceAdminPanel.tsx', lambda s: re.sub(r'\(s\.name \|\| "\?"\)\[0\]', '(s.name || "?").charAt(0)', s))
+          edit('src/admin/dashboard/AdminDashboard.tsx', lambda s: re.sub(r'\(s\.name \|\| "\?"\)\[0\]\.toUpperCase\(\)', '(s.name || "?").charAt(0).toUpperCase()', s))
+          edit('src/routes/app.tsx', lambda s: s.replace('<PushNotificationPrompt />', '<PushNotificationPrompt user={user} />'))
+          edit('src/lg/authscreens.tsx', lambda s: s.replace('type Role = "teacher" | "student" | "parent";', 'export type Role = "teacher" | "student" | "parent";'))
+
+      - name: Verify typecheck and production build
+        run: |
+          npm install
+          npm run typecheck
+          npm run build
+
+      - name: Commit verified source and clean all repair workflows
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/admin/MaterialsDrive.tsx src/admin/ReferenceAdminPanel.tsx src/admin/dashboard/AdminDashboard.tsx src/routes/app.tsx src/lg/authscreens.tsx
+          git rm -f .github/workflows/repair-final.yml .github/workflows/repair-now2.yml .github/workflows/repair-now.yml .github/workflows/apply-ts-fixes.yml .github/workflows/final-ts-fix.yml .github/workflows/ts-final.yml || true
+          git commit -m 'fix: resolve all TypeScript errors and verify build'
+          git push origin HEAD:fix/typescript-cleanup
