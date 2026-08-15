@@ -1,0 +1,38 @@
+name: Final source repair
+
+on:
+  push:
+    branches: [fix/typescript-cleanup]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Apply final source repair
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/admin/ReferenceAdminPanel.tsx')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('String(s.name || "?")[0]', 'String(s.name || "?").charAt(0)')
+          s = s.replace('(s.name || "?")[0]', '(s.name || "?").charAt(0)')
+          p.write_text(s, encoding='utf-8')
+      - name: Verify typecheck and build
+        run: |
+          npm install
+          npm run typecheck
+          npm run build
+      - name: Commit verified source and clean temporary workflows
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/admin/MaterialsDrive.tsx src/admin/ReferenceAdminPanel.tsx src/admin/dashboard/AdminDashboard.tsx src/routes/app.tsx src/lg/authscreens.tsx
+          git rm -f .github/workflows/repair-now2.yml .github/workflows/repair-now.yml .github/workflows/apply-ts-fixes.yml .github/workflows/final-ts-fix.yml .github/workflows/ts-final.yml || true
+          git commit -m 'fix: verify TypeScript and production build'
+          git push origin HEAD:fix/typescript-cleanup
