@@ -1,19 +1,565 @@
-import React,{useEffect,useState}from"react";
-import {C}from"@/lg/data";
-import {SB_KEY,SB_URL,supabase}from"@/lg/supabase";
-import {Card,Sec,Shell,AppBar}from"@/lg/ui";
-import {NotifPanel}from"@/lg/panels";
-import {STHome,STTimetable}from"@/lg/student";
-import {STAttendance,STMaterials,STFees,STExamSchedule}from"@/lg/studentPortal";
+import React, { useEffect, useState } from "react";
+import { C } from "@/lg/data";
+import { SB_KEY, SB_URL, supabase } from "@/lg/supabase";
+import { Card, Sec, Shell, AppBar } from "@/lg/ui";
+import { NotifPanel } from "@/lg/panels";
+import { STHome, STTimetable } from "@/lg/student";
+import {
+  STAttendance,
+  STMaterials,
+  STFees,
+  STExamSchedule,
+} from "@/lg/studentPortal";
 
-const text=v=>v==null?"":String(v);
-const loadHomework=async student=>{const batch=text(student?.batch_id||student?.batchId),cls=text(student?.cls),sec=text(student?.sec);const q=batch?supabase.from("homework").select("id,cls,sec,subject,desc,given,due,tid,completedby,pdfname,storage_path,file_size,mime_type,batch_id,created_at").eq("batch_id",batch).order("created_at",{ascending:false}):supabase.from("homework").select("id,cls,sec,subject,desc,given,due,tid,completedby,pdfname,storage_path,file_size,mime_type,batch_id,created_at").eq("cls",cls).eq("sec",sec).order("created_at",{ascending:false});const{data,error}=await q;if(error)throw error;return data||[]};
-const daysLeft=due=>{if(!due)return"No due date";const d=new Date(`${due}T23:59:59`),now=new Date(),n=Math.ceil((d.getTime()-now.getTime())/86400000);if(n<0){const x=Math.abs(n);return`${x} day${x===1?"":"s"} overdue`}if(n===0)return"Due today";return`${n} day${n===1?"":"s"} left`};
+const text = (value) => (value == null ? "" : String(value));
 
-function Homework({student}){const[rows,setRows]=useState([]),[error,setError]=useState(""),[selected,setSelected]=useState(null),[busy,setBusy]=useState("");useEffect(()=>{let live=true;(async()=>{try{setRows(await loadHomework(student))}catch(e){if(live)setError(e?.message||"Unable to load homework.")}})();return()=>{live=false}},[student]);
- const getFile=async h=>{const{data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error("Your session has expired. Please sign in again.");const response=await fetch(`${SB_URL}/functions/v1/homework-file`,{method:"POST",headers:{Authorization:`Bearer ${session.access_token}`,apikey:SB_KEY,"Content-Type":"application/json"},body:JSON.stringify({id:h.id})});if(!response.ok){let message="Unable to retrieve the homework PDF.";try{const body=await response.json();if(body?.error)message=body.error}catch{}throw new Error(message)}const type=response.headers.get("content-type")||"";if(!type.toLowerCase().includes("pdf")&&!type.toLowerCase().includes("octet-stream"))throw new Error("The homework file service did not return a PDF.");return response.blob()};
- const openPdf=async h=>{setError("");setBusy(`${h.id}:open`);try{const blob=await getFile(h),url=URL.createObjectURL(blob),w=window.open(url,"_blank","noopener,noreferrer");if(!w){setError("Your browser blocked the PDF window. Use Download PDF instead.");URL.revokeObjectURL(url);return}window.setTimeout(()=>URL.revokeObjectURL(url),60000)}catch(e){setError(e?.message||"Unable to open the homework PDF.")}finally{setBusy("")}};
- const download=async h=>{setError("");setBusy(`${h.id}:download`);try{const blob=await getFile(h),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=h.pdfname||"homework.pdf";a.style.display="none";document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),2000)}catch(e){setError(e?.message||"Unable to download the homework PDF.")}finally{setBusy("")}};
- return <div>{error&&<Card style={{color:C.red,marginBottom:10}}>{error}</Card>}<Sec title={`Homework (${rows.length}) 📝`}/>{rows.length?rows.map(h=>{const hasPdf=Boolean(h.pdfname||h.storage_path);return <Card key={h.id} style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setSelected(h)}><div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start"}}><div><div><span style={{display:"inline-block",padding:"4px 9px",borderRadius:999,background:C.light,color:C.accent,fontSize:11,fontWeight:800}}>{h.subject}</span><span style={{fontSize:11,color:C.sub,marginLeft:7}}>Due: {h.due||"—"}</span></div><div style={{fontWeight:800,marginTop:8}}>{h.desc}</div>{hasPdf&&<div style={{fontSize:11,color:C.sub,marginTop:6}}>📄 {h.pdfname||"PDF attachment"}</div>}</div><span style={{fontSize:12,color:C.accent,fontWeight:800,whiteSpace:"nowrap"}}>Open →</span></div></Card>}) :<Card style={{textAlign:"center",padding:28,color:C.sub}}>No homework right now 🎉</Card>}{selected&&<div role="dialog" aria-modal="true" onClick={()=>setSelected(null)} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(15,23,42,.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:18}}><div onClick={e=>e.stopPropagation()} style={{width:"min(680px,100%)",maxHeight:"90vh",overflowY:"auto",background:"#fff",borderRadius:18,padding:20,boxShadow:"0 20px 60px rgba(0,0,0,.25)"}}><div style={{display:"flex",justifyContent:"space-between",gap:12}}><div><div style={{fontSize:11,fontWeight:800,color:C.accent}}>{selected.subject}</div><h3 style={{margin:"8px 0 4px",color:C.text}}>Homework</h3><div style={{fontSize:12,color:C.sub}}>Assigned: {selected.given||"—"} · Due: {selected.due||"—"}</div><div style={{marginTop:8,display:"inline-block",padding:"6px 10px",borderRadius:999,background:C.light,color:C.accent,fontSize:12,fontWeight:800}}>{daysLeft(selected.due)}</div></div><button onClick={()=>setSelected(null)} style={{border:0,background:"#F1F5F9",borderRadius:10,padding:"7px 10px",cursor:"pointer"}}>✕</button></div><div style={{marginTop:18,whiteSpace:"pre-wrap",lineHeight:1.6,color:C.text}}>{selected.desc}</div>{(selected.pdfname||selected.storage_path)&&<div style={{marginTop:16,padding:12,borderRadius:12,background:C.light}}><div style={{fontWeight:800}}>📄 {selected.pdfname||"PDF attachment"}</div><div style={{fontSize:11,color:C.sub,marginTop:3}}>{selected.file_size?`${Math.ceil(selected.file_size/1024)} KB · `:""}PDF attachment</div></div>}<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:18}}>{(selected.pdfname||selected.storage_path)&&<><button disabled={!!busy} onClick={()=>void openPdf(selected)} style={{border:0,borderRadius:10,padding:"10px 14px",background:C.accent,color:"#fff",fontWeight:800,cursor:"pointer"}}>{busy===`${selected.id}:open`?"Opening…":"Open PDF"}</button><button disabled={!!busy} onClick={()=>void download(selected)} style={{border:0,borderRadius:10,padding:"10px 14px",background:C.light,color:C.accent,fontWeight:800,cursor:"pointer"}}>{busy===`${selected.id}:download`?"Downloading…":"Download PDF"}</button></>}</div></div></div>}</div>}
+const loadHomework = async (student) => {
+  const batch = text(student?.batch_id || student?.batchId);
+  const cls = text(student?.cls);
+  const sec = text(student?.sec);
 
-export function StudentAppFixed({user,onLogout}){const[tab,setTab]=useState("home"),[showNotif,setShowNotif]=useState(false),[student,setStudent]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState("");useEffect(()=>{let live=true;(async()=>{try{const{data,error:e}=await supabase.from("students").select("id,name,sid,cls,sec,parentname,parentphone,parent,enroll,status").eq("id",user.ref).maybeSingle();if(e)throw e;if(!data)throw new Error("Student profile could not be loaded");const{data:batchRows,error:batchError}=await supabase.from("batch_students").select("batch_id,status,left_at,joined_at").eq("student_id",user.ref).eq("status","active").is("left_at",null).order("joined_at",{ascending:false}).limit(1);if(batchError)throw batchError;const batchId=batchRows?.[0]?.batch_id||"";if(live)setStudent({...data,batchId})}catch(e){if(live)setError(e.message)}finally{if(live)setLoading(false)}})();return()=>{live=false}},[user.ref]);const tabs=[{key:"home",icon:"🏠",label:"Home"},{key:"timetable",icon:"📅",label:"Schedule"},{key:"materials",icon:"📚",label:"Materials"},{key:"homework",icon:"📝",label:"HW"},{key:"exams",icon:"📋",label:"Exams"},{key:"attendance",icon:"✅",label:"Attend."},{key:"fees",icon:"💰",label:"Fees"}];const content=loading?<Card style={{textAlign:"center",padding:30,color:C.sub}}>Loading your student profile…</Card>:error?<Card style={{color:C.red,marginTop:20}}>{error}</Card>:tab==="home"?<STHome student={student}/>:tab==="timetable"?<STTimetable student={student}/>:tab==="materials"?<STMaterials student={student}/>:tab==="homework"?<Homework student={student}/>:tab==="exams"?<STExamSchedule student={student}/>:tab==="attendance"?<STAttendance student={student}/>:<STFees student={student}/>;return <><Shell header={<AppBar name={user.name} role="student" userId={user.id} onLogout={onLogout} onNotif={()=>setShowNotif(true)}/>} tabs={tabs} activeTab={tab} setTab={setTab}>{content}</Shell>{showNotif&&<NotifPanel userId={user.id} onClose={()=>setShowNotif(false)}/>}</>}
+  const query = batch
+    ? supabase
+        .from("homework")
+        .select(
+          "id,cls,sec,subject,desc,given,due,tid,completedby,pdfname,storage_path,file_size,mime_type,batch_id,created_at",
+        )
+        .eq("batch_id", batch)
+        .order("created_at", { ascending: false })
+    : supabase
+        .from("homework")
+        .select(
+          "id,cls,sec,subject,desc,given,due,tid,completedby,pdfname,storage_path,file_size,mime_type,batch_id,created_at",
+        )
+        .eq("cls", cls)
+        .eq("sec", sec)
+        .order("created_at", { ascending: false });
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+};
+
+const daysLeft = (due) => {
+  if (!due) return "No due date";
+
+  const dueDate = new Date(`${due}T23:59:59`);
+  const now = new Date();
+  const count = Math.ceil(
+    (dueDate.getTime() - now.getTime()) / 86400000,
+  );
+
+  if (count < 0) {
+    const overdue = Math.abs(count);
+    return `${overdue} day${overdue === 1 ? "" : "s"} overdue`;
+  }
+  if (count === 0) return "Due today";
+  return `${count} day${count === 1 ? "" : "s"} left`;
+};
+
+function Homework({ student }) {
+  const [rows, setRows] = useState([]);
+  const [error, setError] = useState("");
+  const [selected, setSelected] = useState(null);
+  const [busy, setBusy] = useState("");
+
+  useEffect(() => {
+    let live = true;
+
+    (async () => {
+      try {
+        setRows(await loadHomework(student));
+      } catch (e) {
+        if (live) {
+          setError(e?.message || "Unable to load homework.");
+        }
+      }
+    })();
+
+    return () => {
+      live = false;
+    };
+  }, [student]);
+
+  const getFile = async (homework) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    const response = await fetch(
+      `${SB_URL}/functions/v1/homework-file`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: SB_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: homework.id }),
+      },
+    );
+
+    if (!response.ok) {
+      let message = "Unable to retrieve the homework PDF.";
+      try {
+        const body = await response.json();
+        if (body?.error) message = body.error;
+      } catch {
+        // Keep the generic message when the function does not return JSON.
+      }
+      throw new Error(message);
+    }
+
+    const type = response.headers.get("content-type") || "";
+    const lowerType = type.toLowerCase();
+    if (!lowerType.includes("pdf") && !lowerType.includes("octet-stream")) {
+      throw new Error("The homework file service did not return a PDF.");
+    }
+
+    return response.blob();
+  };
+
+  const openPdf = async (homework) => {
+    setError("");
+    setBusy(`${homework.id}:open`);
+
+    try {
+      const blob = await getFile(homework);
+      const url = URL.createObjectURL(blob);
+      const windowRef = window.open(
+        url,
+        "_blank",
+        "noopener,noreferrer",
+      );
+
+      if (!windowRef) {
+        setError(
+          "Your browser blocked the PDF window. Use Download PDF instead.",
+        );
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      setError(e?.message || "Unable to open the homework PDF.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const download = async (homework) => {
+    setError("");
+    setBusy(`${homework.id}:download`);
+
+    try {
+      const blob = await getFile(homework);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+
+      anchor.href = url;
+      anchor.download = homework.pdfname || "homework.pdf";
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (e) {
+      setError(e?.message || "Unable to download the homework PDF.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <div>
+      {error && (
+        <Card style={{ color: C.red, marginBottom: 10 }}>{error}</Card>
+      )}
+
+      <Sec title={`Homework (${rows.length}) 📝`} />
+
+      {rows.length ? (
+        rows.map((homework) => {
+          const hasPdf = Boolean(
+            homework.pdfname || homework.storage_path,
+          );
+
+          return (
+            <Card
+              key={homework.id}
+              style={{ marginBottom: 10, cursor: "pointer" }}
+              onClick={() => setSelected(homework)}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  alignItems: "flex-start",
+                }}
+              >
+                <div>
+                  <div>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        padding: "4px 9px",
+                        borderRadius: 999,
+                        background: C.light,
+                        color: C.accent,
+                        fontSize: 11,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {homework.subject}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: C.sub,
+                        marginLeft: 7,
+                      }}
+                    >
+                      Due: {homework.due || "—"}
+                    </span>
+                  </div>
+
+                  <div style={{ fontWeight: 800, marginTop: 8 }}>
+                    {homework.desc}
+                  </div>
+
+                  {hasPdf && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: C.sub,
+                        marginTop: 6,
+                      }}
+                    >
+                      📄 {homework.pdfname || "PDF attachment"}
+                    </div>
+                  )}
+                </div>
+
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: C.accent,
+                    fontWeight: 800,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Open →
+                </span>
+              </div>
+            </Card>
+          );
+        })
+      ) : (
+        <Card
+          style={{
+            textAlign: "center",
+            padding: 28,
+            color: C.sub,
+          }}
+        >
+          No homework right now 🎉
+        </Card>
+      )}
+
+      {selected && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setSelected(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(15,23,42,.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 18,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(680px,100%)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              background: "#fff",
+              borderRadius: 18,
+              padding: 20,
+              boxShadow: "0 20px 60px rgba(0,0,0,.25)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: C.accent,
+                  }}
+                >
+                  {selected.subject}
+                </div>
+                <h3 style={{ margin: "8px 0 4px", color: C.text }}>
+                  Homework
+                </h3>
+                <div style={{ fontSize: 12, color: C.sub }}>
+                  Assigned: {selected.given || "—"} · Due: {selected.due || "—"}
+                </div>
+                <div
+                  style={{
+                    marginTop: 8,
+                    display: "inline-block",
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    background: C.light,
+                    color: C.accent,
+                    fontSize: 12,
+                    fontWeight: 800,
+                  }}
+                >
+                  {daysLeft(selected.due)}
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelected(null)}
+                style={{
+                  border: 0,
+                  background: "#F1F5F9",
+                  borderRadius: 10,
+                  padding: "7px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              style={{
+                marginTop: 18,
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.6,
+                color: C.text,
+              }}
+            >
+              {selected.desc}
+            </div>
+
+            {(selected.pdfname || selected.storage_path) && (
+              <div
+                style={{
+                  marginTop: 16,
+                  padding: 12,
+                  borderRadius: 12,
+                  background: C.light,
+                }}
+              >
+                <div style={{ fontWeight: 800 }}>
+                  📄 {selected.pdfname || "PDF attachment"}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: C.sub,
+                    marginTop: 3,
+                  }}
+                >
+                  {selected.file_size
+                    ? `${Math.ceil(selected.file_size / 1024)} KB · `
+                    : ""}
+                  PDF attachment
+                </div>
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                marginTop: 18,
+              }}
+            >
+              {(selected.pdfname || selected.storage_path) && (
+                <>
+                  <button
+                    disabled={!!busy}
+                    onClick={() => void openPdf(selected)}
+                    style={{
+                      border: 0,
+                      borderRadius: 10,
+                      padding: "10px 14px",
+                      background: C.accent,
+                      color: "#fff",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {busy === `${selected.id}:open`
+                      ? "Opening…"
+                      : "Open PDF"}
+                  </button>
+
+                  <button
+                    disabled={!!busy}
+                    onClick={() => void download(selected)}
+                    style={{
+                      border: 0,
+                      borderRadius: 10,
+                      padding: "10px 14px",
+                      background: C.light,
+                      color: C.accent,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {busy === `${selected.id}:download`
+                      ? "Downloading…"
+                      : "Download PDF"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function StudentAppFixed({ user, onLogout }) {
+  const [tab, setTab] = useState("home");
+  const [showNotif, setShowNotif] = useState(false);
+  const [student, setStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let live = true;
+
+    (async () => {
+      try {
+        const { data, error: profileError } = await supabase
+          .from("students")
+          .select(
+            "id,name,sid,cls,sec,parentname,parentphone,parent,enroll,status",
+          )
+          .eq("id", user.ref)
+          .maybeSingle();
+
+        if (profileError) throw profileError;
+        if (!data) throw new Error("Student profile could not be loaded");
+
+        const {
+          data: batchRows,
+          error: batchError,
+        } = await supabase
+          .from("batch_students")
+          .select("batch_id,status,left_at,joined_at")
+          .eq("student_id", user.ref)
+          .eq("status", "active")
+          .is("left_at", null)
+          .order("joined_at", { ascending: false })
+          .limit(1);
+
+        if (batchError) throw batchError;
+
+        const batchId = batchRows?.[0]?.batch_id || "";
+        if (live) setStudent({ ...data, batchId });
+      } catch (e) {
+        if (live) setError(e.message);
+      } finally {
+        if (live) setLoading(false);
+      }
+    })();
+
+    return () => {
+      live = false;
+    };
+  }, [user.ref]);
+
+  const tabs = [
+    { key: "home", icon: "🏠", label: "Home" },
+    { key: "timetable", icon: "📅", label: "Schedule" },
+    { key: "materials", icon: "📚", label: "Materials" },
+    { key: "homework", icon: "📝", label: "HW" },
+    { key: "exams", icon: "📋", label: "Exams" },
+    { key: "attendance", icon: "✅", label: "Attend." },
+    { key: "fees", icon: "💰", label: "Fees" },
+  ];
+
+  const content = loading ? (
+    <Card
+      style={{
+        textAlign: "center",
+        padding: 30,
+        color: C.sub,
+      }}
+    >
+      Loading your student profile…
+    </Card>
+  ) : error ? (
+    <Card style={{ color: C.red, marginTop: 20 }}>{error}</Card>
+  ) : tab === "home" ? (
+    <STHome student={student} />
+  ) : tab === "timetable" ? (
+    <STTimetable student={student} />
+  ) : tab === "materials" ? (
+    <STMaterials student={student} />
+  ) : tab === "homework" ? (
+    <Homework student={student} />
+  ) : tab === "exams" ? (
+    <STExamSchedule student={student} />
+  ) : tab === "attendance" ? (
+    <STAttendance student={student} />
+  ) : (
+    <STFees student={student} />
+  );
+
+  return (
+    <>
+      <Shell
+        header={
+          <AppBar
+            name={user.name}
+            role="student"
+            userId={user.id}
+            onLogout={onLogout}
+            onNotif={() => setShowNotif(true)}
+          />
+        }
+        tabs={tabs}
+        activeTab={tab}
+        setTab={setTab}
+      >
+        {content}
+      </Shell>
+
+      {showNotif && (
+        <NotifPanel
+          userId={user.id}
+          onClose={() => setShowNotif(false)}
+        />
+      )}
+    </>
+  );
+}
