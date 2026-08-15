@@ -1,43 +1,709 @@
-import React,{useEffect,useState}from"react";
-import {C,gdb}from"@/lg/data";
-import {supabase}from"@/lg/supabase";
-import {Badge,Card,Sec,Shell,AppBar}from"@/lg/ui";
-import {NotifPanel}from"@/lg/panels";
-import {STHome,STTimetable}from"@/lg/student";
-const text=v=>v==null?"":String(v);
-async function queryStudentData(student){
-  if(!student)return {timetable:[],attendance:[],homework:[],fees:[],announcements:[],exams:[],folders:[],materials:[]};
-  const sid=text(student.sid||student.id),cls=text(student.cls),sec=text(student.sec),batch=text(student.batch_id||student.batchId);
-  const timetableQ=gdb("timetable").then(rows=>({data:(Array.isArray(rows)?rows:[]).filter(s=>batch&&s.batchId?String(s.batchId)===batch:(String(s.cls)===cls&&String(s.sec)===sec)),error:null})).catch(error=>({data:null,error}));
-  const homeworkQ=batch?supabase.from("homework").select("id,cls,sec,subject,desc,given,due,tid,completedby,pdfname,storage_path,file_size,mime_type,batch_id,created_at").eq("batch_id",batch).order("created_at",{ascending:false}):supabase.from("homework").select("id,cls,sec,subject,desc,given,due,tid,completedby,pdfname,storage_path,file_size,mime_type,batch_id,created_at").eq("cls",cls).eq("sec",sec).order("created_at",{ascending:false});
-  const [tt,att,hw,fees,ann,exams,folders,materials]=await Promise.all([
+import React, { useEffect, useState } from "react";
+import { C, gdb } from "@/lg/data";
+import { supabase } from "@/lg/supabase";
+import { Badge, Card, Sec, Shell, AppBar } from "@/lg/ui";
+import { NotifPanel } from "@/lg/panels";
+import { STHome, STTimetable } from "@/lg/student";
+const text = (v) => (v == null ? "" : String(v));
+async function queryStudentData(student) {
+  if (!student)
+    return {
+      timetable: [],
+      attendance: [],
+      homework: [],
+      fees: [],
+      announcements: [],
+      exams: [],
+      folders: [],
+      materials: [],
+    };
+  const sid = text(student.sid || student.id),
+    cls = text(student.cls),
+    sec = text(student.sec),
+    batch = text(student.batch_id || student.batchId);
+  const timetableQ = gdb("timetable")
+    .then((rows) => ({
+      data: (Array.isArray(rows) ? rows : []).filter((s) =>
+        batch && s.batchId
+          ? String(s.batchId) === batch
+          : String(s.cls) === cls && String(s.sec) === sec,
+      ),
+      error: null,
+    }))
+    .catch((error) => ({ data: null, error }));
+  const homeworkQ = batch
+    ? supabase
+        .from("homework")
+        .select(
+          "id,cls,sec,subject,desc,given,due,tid,completedby,pdfname,storage_path,file_size,mime_type,batch_id,created_at",
+        )
+        .eq("batch_id", batch)
+        .order("created_at", { ascending: false })
+    : supabase
+        .from("homework")
+        .select(
+          "id,cls,sec,subject,desc,given,due,tid,completedby,pdfname,storage_path,file_size,mime_type,batch_id,created_at",
+        )
+        .eq("cls", cls)
+        .eq("sec", sec)
+        .order("created_at", { ascending: false });
+  const [tt, att, hw, fees, ann, exams, folders, materials] = await Promise.all([
     timetableQ,
-    supabase.from("attendance").select("id,sid,date,status,by,created_at").eq("sid",sid).order("date",{ascending:false}),
+    supabase
+      .from("attendance")
+      .select("id,sid,date,status,by,created_at")
+      .eq("sid", sid)
+      .order("date", { ascending: false }),
     homeworkQ,
-    supabase.from("fees").select("id,sid,desc,amount,due,status,paidon,created_at").eq("sid",sid).order("created_at",{ascending:false}),
-    supabase.from("announcements").select("id,title,desc,date,target,created_at").in("target",["all",cls,sec,`${cls}-${sec}`]).order("created_at",{ascending:false}),
-    supabase.from("examschedule").select("id,title,subject,cls,sec,date,starttime,endtime,venue,syllabus,totalmarks,createdby,startTime,endTime,totalMarks").eq("cls",cls).eq("sec",sec).order("date"),
-    supabase.from("material_folders").select("id,name,parent_id,created_at,access_standards").order("name"),
-    supabase.from("materials").select("id,title,name,folder_id,batch_id,storage_path,file_size,mime_type,pdfdata,pdfname,desc,subject,created_at,cls,sec").order("created_at",{ascending:false})
+    supabase
+      .from("fees")
+      .select("id,sid,desc,amount,due,status,paidon,created_at")
+      .eq("sid", sid)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("announcements")
+      .select("id,title,desc,date,target,created_at")
+      .in("target", ["all", cls, sec, `${cls}-${sec}`])
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("examschedule")
+      .select(
+        "id,title,subject,cls,sec,date,starttime,endtime,venue,syllabus,totalmarks,createdby,startTime,endTime,totalMarks",
+      )
+      .eq("cls", cls)
+      .eq("sec", sec)
+      .order("date"),
+    supabase
+      .from("material_folders")
+      .select("id,name,parent_id,created_at,access_standards")
+      .order("name"),
+    supabase
+      .from("materials")
+      .select(
+        "id,title,name,folder_id,batch_id,storage_path,file_size,mime_type,pdfdata,pdfname,desc,subject,created_at,cls,sec",
+      )
+      .order("created_at", { ascending: false }),
   ]);
-  const errors=[tt,att,hw,fees,ann,exams,folders,materials].filter(r=>r.error);
-  if(errors.length)throw new Error(errors.map(r=>r.error.message).join("; "));
-  return {timetable:tt.data||[],attendance:att.data||[],homework:hw.data||[],fees:fees.data||[],announcements:ann.data||[],exams:exams.data||[],folders:folders.data||[],materials:materials.data||[]};
+  const errors = [tt, att, hw, fees, ann, exams, folders, materials].filter((r) => r.error);
+  if (errors.length) throw new Error(errors.map((r) => r.error.message).join("; "));
+  return {
+    timetable: tt.data || [],
+    attendance: att.data || [],
+    homework: hw.data || [],
+    fees: fees.data || [],
+    announcements: ann.data || [],
+    exams: exams.data || [],
+    folders: folders.data || [],
+    materials: materials.data || [],
+  };
 }
-async function getHomeworkFile(id){
-  const {data,error}=await supabase.functions.invoke("homework-file",{body:{id},responseType:"blob"});
-  if(error){
-    let message=error.message||"Unable to retrieve homework attachment.";
-    try{const body=await error.context?.json();if(body?.error)message=body.error}catch{}
+async function getHomeworkFile(id) {
+  const { data, error } = await supabase.functions.invoke("homework-file", {
+    body: { id },
+    responseType: "blob",
+  });
+  if (error) {
+    let message = error.message || "Unable to retrieve homework attachment.";
+    try {
+      const body = await error.context?.json();
+      if (body?.error) message = body.error;
+    } catch {}
     throw new Error(message);
   }
-  if(!(data instanceof Blob))throw new Error("The homework attachment could not be read.");
+  if (!(data instanceof Blob)) throw new Error("The homework attachment could not be read.");
   return data;
 }
-export function STAttendance({student}){const[rows,setRows]=useState([]),[error,setError]=useState("");useEffect(()=>{let live=true;(async()=>{try{setRows((await queryStudentData(student)).attendance)}catch(e){if(live)setError(e.message)}})();return()=>{live=false}},[student]);const present=rows.filter(a=>a.status==="present").length,absent=rows.filter(a=>a.status==="absent").length,leave=rows.filter(a=>a.status==="leave").length,rate=rows.length?Math.round(present/rows.length*100):0;return <div>{error&&<Card style={{color:C.red,marginBottom:10}}>{error}</Card>}<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:34,fontWeight:900,color:rate>=75?C.green:C.red}}>{rate}%</div><div style={{fontSize:12,color:C.sub}}>Attendance</div><div style={{display:"flex",justifyContent:"center",gap:24,marginTop:16}}><div>✅ {present}</div><div>❌ {absent}</div><div>🟡 {leave}</div></div></Card><Sec title="Attendance Log 📋"/>{rows.length?rows.map(a=><Card key={a.id} style={{marginBottom:8,display:"flex",justifyContent:"space-between"}}><span>{a.date}</span><Badge label={a.status}/></Card>):<Card style={{textAlign:"center",padding:24,color:C.sub}}>No attendance records yet.</Card>}</div>}
-export function STHomework({student}){const[rows,setRows]=useState([]),[error,setError]=useState(""),[selected,setSelected]=useState(null),[busy,setBusy]=useState("");useEffect(()=>{let live=true;(async()=>{try{setRows((await queryStudentData(student)).homework)}catch(e){if(live)setError(e.message)}})();return()=>{live=false}},[student]);const openPdf=async h=>{setError("");setBusy(`${h.id}:open`);try{const blob=await getHomeworkFile(h.id);const url=URL.createObjectURL(blob);const w=window.open(url,"_blank","noopener,noreferrer");if(!w){setError("Your browser blocked the PDF window. Use Download instead.");URL.revokeObjectURL(url);return}window.setTimeout(()=>URL.revokeObjectURL(url),60000)}catch(e){setError(e?.message||"Unable to open the homework PDF.")}finally{setBusy("")}};const download=async h=>{setError("");setBusy(`${h.id}:download`);try{const blob=await getHomeworkFile(h.id);const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=h.pdfname||"homework.pdf";document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){setError(e?.message||"Unable to download the homework PDF.")}finally{setBusy("")}};return <div>{error&&<Card style={{color:C.red,marginBottom:10}}>{error}</Card>}<Sec title={`Homework (${rows.length}) 📝`}/>{rows.length?rows.map(h=><Card key={h.id} style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setSelected(h)}><div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start"}}><div style={{minWidth:0}}><Badge label={h.subject}/><span style={{fontSize:11,color:C.sub,marginLeft:7}}>Due: {h.due}</span><div style={{fontWeight:800,marginTop:8,whiteSpace:"pre-wrap"}}>{h.desc}</div>{(h.pdfname||h.storage_path)&&<div style={{fontSize:11,color:C.sub,marginTop:6}}>📄 {h.pdfname||"PDF attachment"}</div>}</div><span style={{fontSize:12,color:C.accent,fontWeight:800,whiteSpace:"nowrap"}}>Open →</span></div></Card>):<Card style={{textAlign:"center",padding:28,color:C.sub}}>No homework right now 🎉</Card>}{selected&&<div role="dialog" aria-modal="true" onClick={()=>setSelected(null)} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(15,23,42,.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:18}}><div onClick={e=>e.stopPropagation()} style={{width:"min(680px,100%)",maxHeight:"90vh",overflowY:"auto",background:"#fff",borderRadius:18,padding:20,boxShadow:"0 20px 60px rgba(0,0,0,.25)"}}><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}><div><Badge label={selected.subject}/><h3 style={{margin:"10px 0 4px"}}>Homework</h3><div style={{fontSize:12,color:C.sub}}>Assigned: {selected.given||"—"} · Due: {selected.due||"—"}</div></div><button onClick={()=>setSelected(null)} style={{border:0,background:"#F1F5F9",borderRadius:10,padding:"7px 10px",cursor:"pointer"}}>✕</button></div><div style={{marginTop:18,whiteSpace:"pre-wrap",lineHeight:1.6,color:C.text}}>{selected.desc}</div>{(selected.pdfname||selected.storage_path)&&<div style={{marginTop:16,padding:12,borderRadius:12,background:C.light}}><div style={{fontWeight:800}}>📄 {selected.pdfname||"PDF attachment"}</div><div style={{fontSize:11,color:C.sub,marginTop:3}}>{selected.file_size?`${Math.ceil(selected.file_size/1024)} KB · `:""}PDF attachment</div></div>}<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:18}}>{(selected.pdfname||selected.storage_path)&&<><button disabled={!!busy} onClick={()=>void openPdf(selected)} style={{border:0,borderRadius:10,padding:"10px 14px",background:C.accent,color:"#fff",fontWeight:800,cursor:"pointer"}}>{busy===`${selected.id}:open`?"Opening…":"Open PDF"}</button><button disabled={!!busy} onClick={()=>void download(selected)} style={{border:0,borderRadius:10,padding:"10px 14px",background:C.light,color:C.accent,fontWeight:800,cursor:"pointer"}}>{busy===`${selected.id}:download`?"Downloading…":"Download PDF"}</button></>}</div></div></div>}</div>}
-export function STMaterials({student}){const[folders,setFolders]=useState([]),[rows,setRows]=useState([]),[current,setCurrent]=useState(null),[error,setError]=useState(""),[loading,setLoading]=useState(true);useEffect(()=>{let live=true;(async()=>{setLoading(true);try{const d=await queryStudentData(student);if(live){setFolders(d.folders);setRows(d.materials)}}catch(e){if(live)setError(e.message)}finally{if(live)setLoading(false)}})();return()=>{live=false}},[student]);const visibleFolders=folders.filter(f=>f.parent_id===(current?.id??null)),visibleFiles=rows.filter(m=>m.folder_id===(current?.id??null));const download=async file=>{if(file.storage_path){const{data,error:e}=await supabase.storage.from("materials").download(file.storage_path);if(e){setError(e.message);return}const url=URL.createObjectURL(data),a=document.createElement("a");a.href=url;a.download=file.name||file.title||"material";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);return}if(file.pdfdata){const a=document.createElement("a");a.href=file.pdfdata;a.download=file.pdfname||file.name||file.title||"material";document.body.appendChild(a);a.click();a.remove()}};return <div><Sec title="Study Materials 📚"/>{error&&<Card style={{color:C.red,marginBottom:10}}>{error}</Card>}{loading?<Card style={{textAlign:"center",padding:28,color:C.sub}}>Loading materials…</Card>:<>{visibleFolders.map(folder=><Card key={folder.id} onClick={()=>setCurrent(folder)} style={{marginBottom:10,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}><div style={{fontSize:30}}>📁</div><div><div style={{fontWeight:900}}>{folder.name}</div><div style={{fontSize:11,color:C.sub}}>Open folder</div></div></Card>)}{visibleFiles.map(file=><Card key={file.id} style={{marginBottom:10}}><div style={{fontWeight:800}}>{file.title||file.name||"Material"}</div><div style={{fontSize:11,color:C.sub}}>{file.subject||""}</div><button onClick={()=>void download(file)} style={{marginTop:8,border:0,borderRadius:10,padding:"9px 12px",background:C.accent,color:"#fff",fontWeight:800}}>Download</button></Card>)}{!visibleFolders.length&&!visibleFiles.length&&<Card style={{textAlign:"center",padding:28,color:C.sub}}>{current?"This folder is empty.":"No study materials yet."}</Card>}</>}</div>}
-export function STFees({student}){const[rows,setRows]=useState([]),[error,setError]=useState("");useEffect(()=>{let live=true;(async()=>{try{setRows((await queryStudentData(student)).fees)}catch(e){if(live)setError(e.message)}})();return()=>{live=false}},[student]);const total=rows.reduce((s,f)=>s+Number(f.amount||0),0),paid=rows.filter(f=>f.status==="paid").reduce((s,f)=>s+Number(f.amount||0),0);return <div>{error&&<Card style={{color:C.red,marginBottom:10}}>{error}</Card>}<Card style={{marginBottom:16}}><div style={{fontSize:12,color:C.sub}}>Total Fees</div><div style={{fontSize:26,fontWeight:900}}>₹{total.toLocaleString()}</div><div style={{fontSize:12,color:C.green}}>Paid ₹{paid.toLocaleString()} · Pending ₹{(total-paid).toLocaleString()}</div></Card><Sec title="Fee Records 💰"/>{rows.length?rows.map(f=><Card key={f.id} style={{marginBottom:9,display:"flex",justifyContent:"space-between"}}><div><div style={{fontWeight:700}}>{f.desc}</div><div style={{fontSize:11,color:C.sub}}>Due: {f.due}</div></div><div>₹{Number(f.amount||0).toLocaleString()}<div><Badge label={f.status}/></div></div></Card>):<Card style={{textAlign:"center",padding:24,color:C.sub}}>No fee records yet.</Card>}</div>}
-export function STExamSchedule({student}){const[rows,setRows]=useState([]),[error,setError]=useState("");useEffect(()=>{let live=true;(async()=>{try{setRows((await queryStudentData(student)).exams)}catch(e){if(live)setError(e.message)}})();return()=>{live=false}},[student]);const today=new Date().toISOString().slice(0,10),upcoming=rows.filter(e=>text(e.date)>=today).sort((a,b)=>text(a.date).localeCompare(text(b.date)));return <div>{error&&<Card style={{color:C.red,marginBottom:10}}>{error}</Card>}<Sec title={`Upcoming Exams 📋 (${upcoming.length})`}/>{upcoming.length?upcoming.map(e=><Card key={e.id} style={{marginBottom:10}}><div style={{fontWeight:800}}>{e.title||e.subject}</div><div style={{fontSize:11,color:C.sub}}>{e.date} · {e.starttime||e.startTime||""}{(e.endtime||e.endTime)?`–${e.endtime||e.endTime}`:""}{e.venue?` · ${e.venue}`:""}</div></Card>):<Card style={{textAlign:"center",padding:28,color:C.sub}}>No upcoming exams.</Card>}</div>}
-export function STAnnouncements({student}){const[rows,setRows]=useState([]),[error,setError]=useState("");useEffect(()=>{let live=true;(async()=>{try{setRows((await queryStudentData(student)).announcements)}catch(e){if(live)setError(e.message)}})();return()=>{live=false}},[student]);return <div>{error&&<Card style={{color:C.red,marginBottom:10}}>{error}</Card>}<Sec title="Announcements 📢"/>{rows.length?rows.map(a=><Card key={a.id} style={{marginBottom:10}}><div style={{fontWeight:800}}>{a.title}</div><div style={{fontSize:12,color:C.sub}}>{a.desc}</div><div style={{fontSize:10,color:C.sub,marginTop:5}}>{a.date||""}</div></Card>):<Card style={{textAlign:"center",padding:24,color:C.sub}}>No announcements.</Card>}</div>}
-export function StudentApp({user,onLogout}){const[tab,setTab]=useState("home"),[showNotif,setShowNotif]=useState(false),[student,setStudent]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState("");useEffect(()=>{let live=true;(async()=>{try{const{data,error:e}=await supabase.from("students").select("id,name,sid,cls,sec,parentname,parentphone,parent,enroll,status").eq("id",user.ref).maybeSingle();if(e)throw e;if(!data)throw new Error("Student profile could not be loaded");const{data:batchRows,error:batchError}=await supabase.from("batch_students").select("batch_id,status,left_at,joined_at").eq("student_id",user.ref).eq("status","active").is("left_at",null).order("joined_at",{ascending:false}).limit(1);if(batchError)throw batchError;const batchId=batchRows?.[0]?.batch_id||"";if(live)setStudent({...data,batchId})}catch(e){if(live)setError(e.message)}finally{if(live)setLoading(false)}})();return()=>{live=false}},[user.ref]);const tabs=[{key:"home",icon:"🏠",label:"Home"},{key:"timetable",icon:"📅",label:"Schedule"},{key:"materials",icon:"📚",label:"Materials"},{key:"homework",icon:"📝",label:"HW"},{key:"exams",icon:"📋",label:"Exams"},{key:"attendance",icon:"✅",label:"Attend."},{key:"fees",icon:"💰",label:"Fees"}];const content=loading?<Card style={{textAlign:"center",padding:30,color:C.sub}}>Loading your student profile…</Card>:error?<Card style={{color:C.red,marginTop:20}}>{error}</Card>:tab==="home"?<STHome student={student}/>:tab==="timetable"?<STTimetable student={student}/>:tab==="materials"?<STMaterials student={student}/>:tab==="homework"?<STHomework student={student}/>:tab==="exams"?<STExamSchedule student={student}/>:tab==="attendance"?<STAttendance student={student}/>:<STFees student={student}/>;return <><Shell header={<AppBar name={user.name} role="student" userId={user.id} onLogout={onLogout} onNotif={()=>setShowNotif(true)}/>} tabs={tabs} activeTab={tab} setTab={setTab}>{content}</Shell>{showNotif&&<NotifPanel userId={user.id} onClose={()=>setShowNotif(false)}/>}</>}
+export function STAttendance({ student }) {
+  const [rows, setRows] = useState([]),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        setRows((await queryStudentData(student)).attendance);
+      } catch (e) {
+        if (live) setError(e.message);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [student]);
+  const present = rows.filter((a) => a.status === "present").length,
+    absent = rows.filter((a) => a.status === "absent").length,
+    leave = rows.filter((a) => a.status === "leave").length,
+    rate = rows.length ? Math.round((present / rows.length) * 100) : 0;
+  return (
+    <div>
+      {error && <Card style={{ color: C.red, marginBottom: 10 }}>{error}</Card>}
+      <Card style={{ textAlign: "center", padding: 24, marginBottom: 16 }}>
+        <div style={{ fontSize: 34, fontWeight: 900, color: rate >= 75 ? C.green : C.red }}>
+          {rate}%
+        </div>
+        <div style={{ fontSize: 12, color: C.sub }}>Attendance</div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 24, marginTop: 16 }}>
+          <div>✅ {present}</div>
+          <div>❌ {absent}</div>
+          <div>🟡 {leave}</div>
+        </div>
+      </Card>
+      <Sec title="Attendance Log 📋" />
+      {rows.length ? (
+        rows.map((a) => (
+          <Card
+            key={a.id}
+            style={{ marginBottom: 8, display: "flex", justifyContent: "space-between" }}
+          >
+            <span>{a.date}</span>
+            <Badge label={a.status} />
+          </Card>
+        ))
+      ) : (
+        <Card style={{ textAlign: "center", padding: 24, color: C.sub }}>
+          No attendance records yet.
+        </Card>
+      )}
+    </div>
+  );
+}
+export function STHomework({ student }) {
+  const [rows, setRows] = useState([]),
+    [error, setError] = useState(""),
+    [selected, setSelected] = useState(null),
+    [busy, setBusy] = useState("");
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        setRows((await queryStudentData(student)).homework);
+      } catch (e) {
+        if (live) setError(e.message);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [student]);
+  const openPdf = async (h) => {
+    setError("");
+    setBusy(`${h.id}:open`);
+    try {
+      const blob = await getHomeworkFile(h.id);
+      const url = URL.createObjectURL(blob);
+      const w = window.open(url, "_blank", "noopener,noreferrer");
+      if (!w) {
+        setError("Your browser blocked the PDF window. Use Download instead.");
+        URL.revokeObjectURL(url);
+        return;
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      setError(e?.message || "Unable to open the homework PDF.");
+    } finally {
+      setBusy("");
+    }
+  };
+  const download = async (h) => {
+    setError("");
+    setBusy(`${h.id}:download`);
+    try {
+      const blob = await getHomeworkFile(h.id);
+      const url = URL.createObjectURL(blob),
+        a = document.createElement("a");
+      a.href = url;
+      a.download = h.pdfname || "homework.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setError(e?.message || "Unable to download the homework PDF.");
+    } finally {
+      setBusy("");
+    }
+  };
+  return (
+    <div>
+      {error && <Card style={{ color: C.red, marginBottom: 10 }}>{error}</Card>}
+      <Sec title={`Homework (${rows.length}) 📝`} />
+      {rows.length ? (
+        rows.map((h) => (
+          <Card
+            key={h.id}
+            style={{ marginBottom: 10, cursor: "pointer" }}
+            onClick={() => setSelected(h)}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                alignItems: "flex-start",
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <Badge label={h.subject} />
+                <span style={{ fontSize: 11, color: C.sub, marginLeft: 7 }}>Due: {h.due}</span>
+                <div style={{ fontWeight: 800, marginTop: 8, whiteSpace: "pre-wrap" }}>
+                  {h.desc}
+                </div>
+                {(h.pdfname || h.storage_path) && (
+                  <div style={{ fontSize: 11, color: C.sub, marginTop: 6 }}>
+                    📄 {h.pdfname || "PDF attachment"}
+                  </div>
+                )}
+              </div>
+              <span
+                style={{ fontSize: 12, color: C.accent, fontWeight: 800, whiteSpace: "nowrap" }}
+              >
+                Open →
+              </span>
+            </div>
+          </Card>
+        ))
+      ) : (
+        <Card style={{ textAlign: "center", padding: 28, color: C.sub }}>
+          No homework right now 🎉
+        </Card>
+      )}
+      {selected && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setSelected(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(15,23,42,.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 18,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(680px,100%)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              background: "#fff",
+              borderRadius: 18,
+              padding: 20,
+              boxShadow: "0 20px 60px rgba(0,0,0,.25)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "flex-start",
+              }}
+            >
+              <div>
+                <Badge label={selected.subject} />
+                <h3 style={{ margin: "10px 0 4px" }}>Homework</h3>
+                <div style={{ fontSize: 12, color: C.sub }}>
+                  Assigned: {selected.given || "—"} · Due: {selected.due || "—"}
+                </div>
+              </div>
+              <button
+                onClick={() => setSelected(null)}
+                style={{
+                  border: 0,
+                  background: "#F1F5F9",
+                  borderRadius: 10,
+                  padding: "7px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ marginTop: 18, whiteSpace: "pre-wrap", lineHeight: 1.6, color: C.text }}>
+              {selected.desc}
+            </div>
+            {(selected.pdfname || selected.storage_path) && (
+              <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: C.light }}>
+                <div style={{ fontWeight: 800 }}>📄 {selected.pdfname || "PDF attachment"}</div>
+                <div style={{ fontSize: 11, color: C.sub, marginTop: 3 }}>
+                  {selected.file_size ? `${Math.ceil(selected.file_size / 1024)} KB · ` : ""}PDF
+                  attachment
+                </div>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 18 }}>
+              {(selected.pdfname || selected.storage_path) && (
+                <>
+                  <button
+                    disabled={!!busy}
+                    onClick={() => void openPdf(selected)}
+                    style={{
+                      border: 0,
+                      borderRadius: 10,
+                      padding: "10px 14px",
+                      background: C.accent,
+                      color: "#fff",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {busy === `${selected.id}:open` ? "Opening…" : "Open PDF"}
+                  </button>
+                  <button
+                    disabled={!!busy}
+                    onClick={() => void download(selected)}
+                    style={{
+                      border: 0,
+                      borderRadius: 10,
+                      padding: "10px 14px",
+                      background: C.light,
+                      color: C.accent,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {busy === `${selected.id}:download` ? "Downloading…" : "Download PDF"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+export function STMaterials({ student }) {
+  const [folders, setFolders] = useState([]),
+    [rows, setRows] = useState([]),
+    [current, setCurrent] = useState(null),
+    [error, setError] = useState(""),
+    [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const d = await queryStudentData(student);
+        if (live) {
+          setFolders(d.folders);
+          setRows(d.materials);
+        }
+      } catch (e) {
+        if (live) setError(e.message);
+      } finally {
+        if (live) setLoading(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [student]);
+  const visibleFolders = folders.filter((f) => f.parent_id === (current?.id ?? null)),
+    visibleFiles = rows.filter((m) => m.folder_id === (current?.id ?? null));
+  const download = async (file) => {
+    if (file.storage_path) {
+      const { data, error: e } = await supabase.storage
+        .from("materials")
+        .download(file.storage_path);
+      if (e) {
+        setError(e.message);
+        return;
+      }
+      const url = URL.createObjectURL(data),
+        a = document.createElement("a");
+      a.href = url;
+      a.download = file.name || file.title || "material";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return;
+    }
+    if (file.pdfdata) {
+      const a = document.createElement("a");
+      a.href = file.pdfdata;
+      a.download = file.pdfname || file.name || file.title || "material";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  };
+  return (
+    <div>
+      <Sec title="Study Materials 📚" />
+      {error && <Card style={{ color: C.red, marginBottom: 10 }}>{error}</Card>}
+      {loading ? (
+        <Card style={{ textAlign: "center", padding: 28, color: C.sub }}>Loading materials…</Card>
+      ) : (
+        <>
+          {visibleFolders.map((folder) => (
+            <Card
+              key={folder.id}
+              onClick={() => setCurrent(folder)}
+              style={{
+                marginBottom: 10,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 30 }}>📁</div>
+              <div>
+                <div style={{ fontWeight: 900 }}>{folder.name}</div>
+                <div style={{ fontSize: 11, color: C.sub }}>Open folder</div>
+              </div>
+            </Card>
+          ))}
+          {visibleFiles.map((file) => (
+            <Card key={file.id} style={{ marginBottom: 10 }}>
+              <div style={{ fontWeight: 800 }}>{file.title || file.name || "Material"}</div>
+              <div style={{ fontSize: 11, color: C.sub }}>{file.subject || ""}</div>
+              <button
+                onClick={() => void download(file)}
+                style={{
+                  marginTop: 8,
+                  border: 0,
+                  borderRadius: 10,
+                  padding: "9px 12px",
+                  background: C.accent,
+                  color: "#fff",
+                  fontWeight: 800,
+                }}
+              >
+                Download
+              </button>
+            </Card>
+          ))}
+          {!visibleFolders.length && !visibleFiles.length && (
+            <Card style={{ textAlign: "center", padding: 28, color: C.sub }}>
+              {current ? "This folder is empty." : "No study materials yet."}
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+export function STFees({ student }) {
+  const [rows, setRows] = useState([]),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        setRows((await queryStudentData(student)).fees);
+      } catch (e) {
+        if (live) setError(e.message);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [student]);
+  const total = rows.reduce((s, f) => s + Number(f.amount || 0), 0),
+    paid = rows.filter((f) => f.status === "paid").reduce((s, f) => s + Number(f.amount || 0), 0);
+  return (
+    <div>
+      {error && <Card style={{ color: C.red, marginBottom: 10 }}>{error}</Card>}
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: C.sub }}>Total Fees</div>
+        <div style={{ fontSize: 26, fontWeight: 900 }}>₹{total.toLocaleString()}</div>
+        <div style={{ fontSize: 12, color: C.green }}>
+          Paid ₹{paid.toLocaleString()} · Pending ₹{(total - paid).toLocaleString()}
+        </div>
+      </Card>
+      <Sec title="Fee Records 💰" />
+      {rows.length ? (
+        rows.map((f) => (
+          <Card
+            key={f.id}
+            style={{ marginBottom: 9, display: "flex", justifyContent: "space-between" }}
+          >
+            <div>
+              <div style={{ fontWeight: 700 }}>{f.desc}</div>
+              <div style={{ fontSize: 11, color: C.sub }}>Due: {f.due}</div>
+            </div>
+            <div>
+              ₹{Number(f.amount || 0).toLocaleString()}
+              <div>
+                <Badge label={f.status} />
+              </div>
+            </div>
+          </Card>
+        ))
+      ) : (
+        <Card style={{ textAlign: "center", padding: 24, color: C.sub }}>No fee records yet.</Card>
+      )}
+    </div>
+  );
+}
+export function STExamSchedule({ student }) {
+  const [rows, setRows] = useState([]),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        setRows((await queryStudentData(student)).exams);
+      } catch (e) {
+        if (live) setError(e.message);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [student]);
+  const today = new Date().toISOString().slice(0, 10),
+    upcoming = rows
+      .filter((e) => text(e.date) >= today)
+      .sort((a, b) => text(a.date).localeCompare(text(b.date)));
+  return (
+    <div>
+      {error && <Card style={{ color: C.red, marginBottom: 10 }}>{error}</Card>}
+      <Sec title={`Upcoming Exams 📋 (${upcoming.length})`} />
+      {upcoming.length ? (
+        upcoming.map((e) => (
+          <Card key={e.id} style={{ marginBottom: 10 }}>
+            <div style={{ fontWeight: 800 }}>{e.title || e.subject}</div>
+            <div style={{ fontSize: 11, color: C.sub }}>
+              {e.date} · {e.starttime || e.startTime || ""}
+              {e.endtime || e.endTime ? `–${e.endtime || e.endTime}` : ""}
+              {e.venue ? ` · ${e.venue}` : ""}
+            </div>
+          </Card>
+        ))
+      ) : (
+        <Card style={{ textAlign: "center", padding: 28, color: C.sub }}>No upcoming exams.</Card>
+      )}
+    </div>
+  );
+}
+export function STAnnouncements({ student }) {
+  const [rows, setRows] = useState([]),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        setRows((await queryStudentData(student)).announcements);
+      } catch (e) {
+        if (live) setError(e.message);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [student]);
+  return (
+    <div>
+      {error && <Card style={{ color: C.red, marginBottom: 10 }}>{error}</Card>}
+      <Sec title="Announcements 📢" />
+      {rows.length ? (
+        rows.map((a) => (
+          <Card key={a.id} style={{ marginBottom: 10 }}>
+            <div style={{ fontWeight: 800 }}>{a.title}</div>
+            <div style={{ fontSize: 12, color: C.sub }}>{a.desc}</div>
+            <div style={{ fontSize: 10, color: C.sub, marginTop: 5 }}>{a.date || ""}</div>
+          </Card>
+        ))
+      ) : (
+        <Card style={{ textAlign: "center", padding: 24, color: C.sub }}>No announcements.</Card>
+      )}
+    </div>
+  );
+}
+export function StudentApp({ user, onLogout }) {
+  const [tab, setTab] = useState("home"),
+    [showNotif, setShowNotif] = useState(false),
+    [student, setStudent] = useState(null),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const { data, error: e } = await supabase
+          .from("students")
+          .select("id,name,sid,cls,sec,parentname,parentphone,parent,enroll,status")
+          .eq("id", user.ref)
+          .maybeSingle();
+        if (e) throw e;
+        if (!data) throw new Error("Student profile could not be loaded");
+        const { data: batchRows, error: batchError } = await supabase
+          .from("batch_students")
+          .select("batch_id,status,left_at,joined_at")
+          .eq("student_id", user.ref)
+          .eq("status", "active")
+          .is("left_at", null)
+          .order("joined_at", { ascending: false })
+          .limit(1);
+        if (batchError) throw batchError;
+        const batchId = batchRows?.[0]?.batch_id || "";
+        if (live) setStudent({ ...data, batchId });
+      } catch (e) {
+        if (live) setError(e.message);
+      } finally {
+        if (live) setLoading(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [user.ref]);
+  const tabs = [
+    { key: "home", icon: "🏠", label: "Home" },
+    { key: "timetable", icon: "📅", label: "Schedule" },
+    { key: "materials", icon: "📚", label: "Materials" },
+    { key: "homework", icon: "📝", label: "HW" },
+    { key: "exams", icon: "📋", label: "Exams" },
+    { key: "attendance", icon: "✅", label: "Attend." },
+    { key: "fees", icon: "💰", label: "Fees" },
+  ];
+  const content = loading ? (
+    <Card style={{ textAlign: "center", padding: 30, color: C.sub }}>
+      Loading your student profile…
+    </Card>
+  ) : error ? (
+    <Card style={{ color: C.red, marginTop: 20 }}>{error}</Card>
+  ) : tab === "home" ? (
+    <STHome student={student} />
+  ) : tab === "timetable" ? (
+    <STTimetable student={student} />
+  ) : tab === "materials" ? (
+    <STMaterials student={student} />
+  ) : tab === "homework" ? (
+    <STHomework student={student} />
+  ) : tab === "exams" ? (
+    <STExamSchedule student={student} />
+  ) : tab === "attendance" ? (
+    <STAttendance student={student} />
+  ) : (
+    <STFees student={student} />
+  );
+  return (
+    <>
+      <Shell
+        header={
+          <AppBar
+            name={user.name}
+            role="student"
+            userId={user.id}
+            onLogout={onLogout}
+            onNotif={() => setShowNotif(true)}
+          />
+        }
+        tabs={tabs}
+        activeTab={tab}
+        setTab={setTab}
+      >
+        {content}
+      </Shell>
+      {showNotif && <NotifPanel userId={user.id} onClose={() => setShowNotif(false)} />}
+    </>
+  );
+}
