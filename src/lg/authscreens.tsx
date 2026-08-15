@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { C, ROLES } from "@/lg/data";
 import { LGLogo, GLOBAL_CSS, Bubbles, BackBtn } from "@/lg/ui";
 
-type Role = "teacher" | "student" | "parent";
+export type Role = "teacher" | "student" | "parent";
 
 export function RoleSelect({ onNext }: { onNext: (role: Role) => void }) {
   const navigate = useNavigate();

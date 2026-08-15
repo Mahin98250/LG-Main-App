@@ -165,7 +165,7 @@ export default function AdminDashboard() {
           <div style={{ fontWeight: 800, color: C.text, fontSize: 15, marginBottom: 16 }}>Recent Students 🎓</div>
           {students.slice(0, 4).map((s) => (
             <div key={s.id} className="row-hover" style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ width: 36, height: 36, borderRadius: 11, background: `${C.accent}18`, display: "grid", placeItems: "center", fontWeight: 800, color: C.accent, fontSize: 14 }}>{(s.name || "?")[0].toUpperCase()}</div>
+              <div style={{ width: 36, height: 36, borderRadius: 11, background: `${C.accent}18`, display: "grid", placeItems: "center", fontWeight: 800, color: C.accent, fontSize: 14 }}>{(s.name || "?").charAt(0).toUpperCase()}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, color: C.text, fontSize: 13 }}>{s.name || "Unnamed student"}</div>
                 <div style={{ fontSize: 11, color: C.sub }}>Class {s.cls || "—"}-{s.sec || "—"} · {s.sid || "—"}</div>

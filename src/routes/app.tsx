@@ -72,5 +72,5 @@ function AppShell() {
   if (!ready || !user) return <Splash label="Loading your dashboard…" />;
 
   const logout = async () => { clearCache(); await signOut(); setUser(null); navigate({ to: "/", replace: true }); };
-  return <div style={{ minHeight: "100vh" }}>{user.role === "teacher" && <TeacherApp user={user} onLogout={logout} />}{user.role === "student" && <StudentApp user={user} onLogout={logout} />}{user.role === "parent" && <ParentApp user={user} onLogout={logout} />}<PushNotificationPrompt /></div>;
+  return <div style={{ minHeight: "100vh" }}>{user.role === "teacher" && <TeacherApp user={user} onLogout={logout} />}{user.role === "student" && <StudentApp user={user} onLogout={logout} />}{user.role === "parent" && <ParentApp user={user} onLogout={logout} />}<PushNotificationPrompt user={user} /></div>;
 }

@@ -284,7 +284,7 @@ export function MaterialsDrive() {
       const { error: ins } = await supabase.from("materials").insert({
         title: safe,
         name: safe,
-        folder_id: current.id,
+        folder_id: current?.id ?? null,
         batch_id: selectedBatchId,
         cls: batch.cls || null,
         sec: batch.sec || null,
