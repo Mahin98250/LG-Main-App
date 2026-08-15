@@ -1,4 +1,4 @@
-name: Apply targeted TypeScript fixes
+name: Repair TypeScript baseline
 
 on:
   push:
@@ -8,46 +8,64 @@ permissions:
   contents: write
 
 jobs:
-  fix:
-    if: github.event.head_commit.message == 'ci: fix remaining strict indexing error'
+  repair:
+    if: github.event.head_commit.message == 'ci: make TypeScript repair deterministic'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.x'
-      - name: Apply fixes
+
+      - name: Apply deterministic source fixes
         shell: python
         run: |
           from pathlib import Path
-          import re
 
-          def replace(path, pattern, replacement):
-              p = Path(path)
-              text = p.read_text(encoding='utf-8')
-              new, count = re.subn(pattern, replacement, text, count=1)
-              if count != 1:
-                  raise SystemExit(f'Expected one match in {path}: {pattern}')
-              p.write_text(new, encoding='utf-8')
+          replacements = {
+              'src/admin/MaterialsDrive.tsx': [
+                  ('folder_id: current.id,', 'folder_id: current?.id ?? null,'),
+              ],
+              'src/admin/ReferenceAdminPanel.tsx': [
+                  ('(r: Row) => ReactNode?', '(r: Row) => ReactNode'),
+                  ('String(s.name || "?")[0]', 'String(s.name || "?").charAt(0)'),
+                  ('(s.name || "?")[0]', '(s.name || "?").charAt(0)'),
+              ],
+              'src/admin/dashboard/AdminDashboard.tsx': [
+                  ('(s.name || "?")[0].toUpperCase()', '(s.name || "?").charAt(0).toUpperCase()'),
+              ],
+              'src/routes/app.tsx': [
+                  ('<PushNotificationPrompt />', '<PushNotificationPrompt user={user} />'),
+              ],
+              'src/lg/authscreens.tsx': [
+                  ('type Role = "teacher" | "student" | "parent";', 'export type Role = "teacher" | "student" | "parent";'),
+              ],
+          }
 
-          replace('src/admin/MaterialsDrive.tsx', r'folder_id: current\.id,', 'folder_id: current?.id ?? null,')
-          replace('src/admin/ReferenceAdminPanel.tsx', r'\(r: Row\) => ReactNode\?', '(r: Row) => ReactNode')
-          replace('src/admin/ReferenceAdminPanel.tsx', r'String\(s\.name \|\| "\?"\)\[0\]', 'String(s.name || "?").charAt(0)')
-          replace('src/admin/ReferenceAdminPanel.tsx', r'\(s\.name \|\| "\?"\)\[0\]', '(s.name || "?").charAt(0)')
-          replace('src/admin/dashboard/AdminDashboard.tsx', r'\(s\.name \|\| "\?"\)\[0\]\.toUpperCase\(\)', '(s.name || "?").charAt(0).toUpperCase()')
-          replace('src/routes/app.tsx', r'<PushNotificationPrompt />', '<PushNotificationPrompt user={user} />')
-          replace('src/lg/authscreens.tsx', r'(?m)^type Role = "teacher" \| "student" \| "parent";$', 'export type Role = "teacher" | "student" | "parent";')
-      - name: Verify
+          changed = []
+          for filename, pairs in replacements.items():
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8')
+              original = text
+              for old, new in pairs:
+                  text = text.replace(old, new)
+              if text != original:
+                  path.write_text(text, encoding='utf-8')
+                  changed.append(filename)
+          print('Changed:', ', '.join(changed) if changed else 'none')
+
+      - name: Verify TypeScript
         run: |
           npm install
           npm run typecheck
-      - name: Commit fixes and remove temporary workflow
+
+      - name: Commit verified source fixes
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm .github/workflows/apply-ts-fixes.yml
           git add src/admin/MaterialsDrive.tsx src/admin/ReferenceAdminPanel.tsx src/admin/dashboard/AdminDashboard.tsx src/routes/app.tsx src/lg/authscreens.tsx
-          git commit -m 'fix: resolve strict TypeScript errors'
-          git push origin HEAD:fix/typescript-cleanup
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+          else
+            git commit -m 'fix: resolve TypeScript baseline errors'
+            git push origin HEAD:fix/typescript-cleanup
+          fi
