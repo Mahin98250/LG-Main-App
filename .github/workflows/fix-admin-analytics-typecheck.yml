@@ -1,0 +1,44 @@
+name: One-time Admin Analytics Typecheck Fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Patch undefined query guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("src/admin/AdminAnalytics.tsx")
+          text = path.read_text()
+          old = 'for(let i=0;i<queries.length;i++){const r=await queries[i]; if(r.error&&!first)first=r.error.message;'
+          new = 'for(let i=0;i<queries.length;i++){const query=queries[i];if(!query)continue;const r=await query;if(r.error&&!first)first=r.error.message;'
+          if old not in text:
+              raise SystemExit("Expected AdminAnalytics query loop was not found")
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Commit fix and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/admin/AdminAnalytics.tsx
+          git rm .github/workflows/fix-admin-analytics-typecheck.yml
+          git commit -m "fix: guard admin analytics query access"
+          git push origin HEAD:main
