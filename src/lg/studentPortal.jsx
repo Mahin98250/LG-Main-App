@@ -134,8 +134,7 @@ async function getHomeworkFile(id) {
     } catch {}
     throw new Error(message);
   }
-  if (!(data instanceof Blob))
-    throw new Error("The homework attachment could not be read.");
+  if (!(data instanceof Blob)) throw new Error("The homework attachment could not be read.");
   return data;
 }
 
@@ -182,7 +181,10 @@ export function STAttendance({ student }) {
       <Sec title="Attendance Log 📋" />
       {rows.length ? (
         rows.map((a) => (
-          <Card key={a.id} style={{ marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+          <Card
+            key={a.id}
+            style={{ marginBottom: 8, display: "flex", justifyContent: "space-between" }}
+          >
             <span>{a.date}</span>
             <Badge label={a.status} />
           </Card>
@@ -258,37 +260,80 @@ export function STHomework({ student }) {
       <Sec title={`Homework (${rows.length}) 📝`} />
       {rows.length ? (
         rows.map((h) => (
-          <Card key={h.id} style={{ marginBottom: 10, cursor: "pointer" }} onClick={() => setSelected(h)}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+          <Card
+            key={h.id}
+            style={{ marginBottom: 10, cursor: "pointer" }}
+            onClick={() => setSelected(h)}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                alignItems: "flex-start",
+              }}
+            >
               <div style={{ minWidth: 0 }}>
                 <Badge label={h.subject} />
                 <span style={{ fontSize: 11, color: C.sub, marginLeft: 7 }}>Due: {h.due}</span>
-                <div style={{ fontWeight: 800, marginTop: 8, whiteSpace: "pre-wrap" }}>{h.desc}</div>
+                <div style={{ fontWeight: 800, marginTop: 8, whiteSpace: "pre-wrap" }}>
+                  {h.desc}
+                </div>
                 {(h.pdfname || h.storage_path) && (
                   <div style={{ fontSize: 11, color: C.sub, marginTop: 6 }}>
                     📄 {h.pdfname || "PDF attachment"}
                   </div>
                 )}
               </div>
-              <span style={{ fontSize: 12, color: C.accent, fontWeight: 800, whiteSpace: "nowrap" }}>Open →</span>
+              <span
+                style={{ fontSize: 12, color: C.accent, fontWeight: 800, whiteSpace: "nowrap" }}
+              >
+                Open →
+              </span>
             </div>
           </Card>
         ))
       ) : (
-        <Card style={{ textAlign: "center", padding: 28, color: C.sub }}>No homework right now 🎉</Card>
+        <Card style={{ textAlign: "center", padding: 28, color: C.sub }}>
+          No homework right now 🎉
+        </Card>
       )}
       {selected && (
         <div
           role="dialog"
           aria-modal="true"
           onClick={() => setSelected(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,23,42,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(15,23,42,.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 18,
+          }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "min(680px,100%)", maxHeight: "90vh", overflowY: "auto", background: "#fff", borderRadius: 18, padding: 20, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }}
+            style={{
+              width: "min(680px,100%)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              background: "#fff",
+              borderRadius: 18,
+              padding: 20,
+              boxShadow: "0 20px 60px rgba(0,0,0,.25)",
+            }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "flex-start",
+              }}
+            >
               <div>
                 <Badge label={selected.subject} />
                 <h3 style={{ margin: "10px 0 4px" }}>Homework</h3>
@@ -296,26 +341,62 @@ export function STHomework({ student }) {
                   Assigned: {selected.given || "—"} · Due: {selected.due || "—"}
                 </div>
               </div>
-              <button onClick={() => setSelected(null)} style={{ border: 0, background: "#F1F5F9", borderRadius: 10, padding: "7px 10px", cursor: "pointer" }}>
+              <button
+                onClick={() => setSelected(null)}
+                style={{
+                  border: 0,
+                  background: "#F1F5F9",
+                  borderRadius: 10,
+                  padding: "7px 10px",
+                  cursor: "pointer",
+                }}
+              >
                 ✕
               </button>
             </div>
-            <div style={{ marginTop: 18, whiteSpace: "pre-wrap", lineHeight: 1.6, color: C.text }}>{selected.desc}</div>
+            <div style={{ marginTop: 18, whiteSpace: "pre-wrap", lineHeight: 1.6, color: C.text }}>
+              {selected.desc}
+            </div>
             {(selected.pdfname || selected.storage_path) && (
               <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: C.light }}>
                 <div style={{ fontWeight: 800 }}>📄 {selected.pdfname || "PDF attachment"}</div>
                 <div style={{ fontSize: 11, color: C.sub, marginTop: 3 }}>
-                  {selected.file_size ? `${Math.ceil(selected.file_size / 1024)} KB · ` : ""}PDF attachment
+                  {selected.file_size ? `${Math.ceil(selected.file_size / 1024)} KB · ` : ""}PDF
+                  attachment
                 </div>
               </div>
             )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 18 }}>
               {(selected.pdfname || selected.storage_path) && (
                 <>
-                  <button disabled={!!busy} onClick={() => void openPdf(selected)} style={{ border: 0, borderRadius: 10, padding: "10px 14px", background: C.accent, color: "#fff", fontWeight: 800, cursor: "pointer" }}>
+                  <button
+                    disabled={!!busy}
+                    onClick={() => void openPdf(selected)}
+                    style={{
+                      border: 0,
+                      borderRadius: 10,
+                      padding: "10px 14px",
+                      background: C.accent,
+                      color: "#fff",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
                     {busy === `${selected.id}:open` ? "Opening…" : "Open PDF"}
                   </button>
-                  <button disabled={!!busy} onClick={() => void download(selected)} style={{ border: 0, borderRadius: 10, padding: "10px 14px", background: C.light, color: C.accent, fontWeight: 800, cursor: "pointer" }}>
+                  <button
+                    disabled={!!busy}
+                    onClick={() => void download(selected)}
+                    style={{
+                      border: 0,
+                      borderRadius: 10,
+                      padding: "10px 14px",
+                      background: C.light,
+                      color: C.accent,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
                     {busy === `${selected.id}:download` ? "Downloading…" : "Download PDF"}
                   </button>
                 </>
@@ -358,7 +439,9 @@ export function STMaterials({ student }) {
     visibleFiles = rows.filter((m) => m.folder_id === (current?.id ?? null));
   const download = async (file) => {
     if (file.storage_path) {
-      const { data, error: e } = await supabase.storage.from("materials").download(file.storage_path);
+      const { data, error: e } = await supabase.storage
+        .from("materials")
+        .download(file.storage_path);
       if (e) {
         setError(e.message);
         return;
@@ -391,7 +474,17 @@ export function STMaterials({ student }) {
       ) : (
         <>
           {visibleFolders.map((folder) => (
-            <Card key={folder.id} onClick={() => setCurrent(folder)} style={{ marginBottom: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+            <Card
+              key={folder.id}
+              onClick={() => setCurrent(folder)}
+              style={{
+                marginBottom: 10,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
               <div style={{ fontSize: 30 }}>📁</div>
               <div>
                 <div style={{ fontWeight: 900 }}>{folder.name}</div>
@@ -403,7 +496,18 @@ export function STMaterials({ student }) {
             <Card key={file.id} style={{ marginBottom: 10 }}>
               <div style={{ fontWeight: 800 }}>{file.title || file.name || "Material"}</div>
               <div style={{ fontSize: 11, color: C.sub }}>{file.subject || ""}</div>
-              <button onClick={() => void download(file)} style={{ marginTop: 8, border: 0, borderRadius: 10, padding: "9px 12px", background: C.accent, color: "#fff", fontWeight: 800 }}>
+              <button
+                onClick={() => void download(file)}
+                style={{
+                  marginTop: 8,
+                  border: 0,
+                  borderRadius: 10,
+                  padding: "9px 12px",
+                  background: C.accent,
+                  color: "#fff",
+                  fontWeight: 800,
+                }}
+              >
                 Download
               </button>
             </Card>
@@ -443,19 +547,26 @@ export function STFees({ student }) {
       <Card style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 12, color: C.sub }}>Total Fees</div>
         <div style={{ fontSize: 26, fontWeight: 900 }}>₹{total.toLocaleString()}</div>
-        <div style={{ fontSize: 12, color: C.green }}>Paid ₹{paid.toLocaleString()} · Pending ₹{(total - paid).toLocaleString()}</div>
+        <div style={{ fontSize: 12, color: C.green }}>
+          Paid ₹{paid.toLocaleString()} · Pending ₹{(total - paid).toLocaleString()}
+        </div>
       </Card>
       <Sec title="Fee Records 💰" />
       {rows.length ? (
         rows.map((f) => (
-          <Card key={f.id} style={{ marginBottom: 9, display: "flex", justifyContent: "space-between" }}>
+          <Card
+            key={f.id}
+            style={{ marginBottom: 9, display: "flex", justifyContent: "space-between" }}
+          >
             <div>
               <div style={{ fontWeight: 700 }}>{f.desc}</div>
               <div style={{ fontSize: 11, color: C.sub }}>Due: {f.due}</div>
             </div>
             <div>
               ₹{Number(f.amount || 0).toLocaleString()}
-              <div><Badge label={f.status} /></div>
+              <div>
+                <Badge label={f.status} />
+              </div>
             </div>
           </Card>
         ))
@@ -483,7 +594,9 @@ export function STExamSchedule({ student }) {
     };
   }, [student]);
   const today = new Date().toISOString().slice(0, 10),
-    upcoming = rows.filter((e) => text(e.date) >= today).sort((a, b) => text(a.date).localeCompare(text(b.date)));
+    upcoming = rows
+      .filter((e) => text(e.date) >= today)
+      .sort((a, b) => text(a.date).localeCompare(text(b.date)));
   return (
     <div>
       {error && <Card style={{ color: C.red, marginBottom: 10 }}>{error}</Card>}
@@ -494,7 +607,7 @@ export function STExamSchedule({ student }) {
             <div style={{ fontWeight: 800 }}>{e.title || e.subject}</div>
             <div style={{ fontSize: 11, color: C.sub }}>
               {e.date} · {e.starttime || e.startTime || ""}
-              {(e.endtime || e.endTime) ? `–${e.endtime || e.endTime}` : ""}
+              {e.endtime || e.endTime ? `–${e.endtime || e.endTime}` : ""}
               {e.venue ? ` · ${e.venue}` : ""}
             </div>
           </Card>
@@ -589,7 +702,9 @@ export function StudentApp({ user, onLogout }) {
     { key: "fees", icon: "💰", label: "Fees" },
   ];
   const content = loading ? (
-    <Card style={{ textAlign: "center", padding: 30, color: C.sub }}>Loading your student profile…</Card>
+    <Card style={{ textAlign: "center", padding: 30, color: C.sub }}>
+      Loading your student profile…
+    </Card>
   ) : error ? (
     <Card style={{ color: C.red, marginTop: 20 }}>{error}</Card>
   ) : tab === "home" ? (
@@ -609,7 +724,20 @@ export function StudentApp({ user, onLogout }) {
   );
   return (
     <>
-      <Shell header={<AppBar name={user.name} role="student" userId={user.id} onLogout={onLogout} onNotif={() => setShowNotif(true)} />} tabs={tabs} activeTab={tab} setTab={setTab}>
+      <Shell
+        header={
+          <AppBar
+            name={user.name}
+            role="student"
+            userId={user.id}
+            onLogout={onLogout}
+            onNotif={() => setShowNotif(true)}
+          />
+        }
+        tabs={tabs}
+        activeTab={tab}
+        setTab={setTab}
+      >
         {content}
       </Shell>
       {showNotif && <NotifPanel userId={user.id} onClose={() => setShowNotif(false)} />}
