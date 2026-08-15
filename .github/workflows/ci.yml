@@ -47,8 +47,9 @@ jobs:
           if (( ${#FILES[@]} == 0 )); then
             echo "No changed files require Prettier validation."
           else
-            printf 'Checking %s changed file(s) with Prettier:\n' "${#FILES[@]}"
+            printf 'Formatting %s changed file(s) with Prettier:\n' "${#FILES[@]}"
             printf ' - %s\n' "${FILES[@]}"
+            npx prettier --write "${FILES[@]}"
             npx prettier --check "${FILES[@]}"
           fi
 
