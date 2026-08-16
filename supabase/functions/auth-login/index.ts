@@ -22,22 +22,21 @@ const emailFor = (loginId: string, role: string) => {
 };
 
 async function findAuthUserByUsersRow(admin: ReturnType<typeof createClient>, role: string, loginId: string, ref?: string) {
-  const query = admin
-    .from("users")
-    .select("auth_id,email,ref,phone,status,role")
-    .eq("role", role)
-    .limit(1);
-
-  const { data, error } = ref
-    ? await query.eq("ref", ref).maybeSingle()
-    : await query.eq("phone", loginId).maybeSingle();
+  const query = admin.from("users").select("auth_id,email,ref,phone,status,role").eq("role", role).limit(1);
+  const { data, error } = ref ? await query.eq("ref", ref).maybeSingle() : await query.eq("phone", loginId).maybeSingle();
   if (error || !data) return null;
   if (inactive(data.status)) return { blocked: true, user: null, row: data };
   if (!data.auth_id) return { blocked: false, user: null, row: data };
-
   const { data: authData, error: authError } = await admin.auth.admin.getUserById(data.auth_id);
   if (authError || !authData.user) return { blocked: false, user: null, row: data };
   return { blocked: false, user: authData.user, row: data };
+}
+
+async function findTeacherAuthByTid(admin: ReturnType<typeof createClient>, tid: string) {
+  const { data: teacher, error } = await admin.from("teachers").select("id,status").eq("tid", tid).limit(1).maybeSingle();
+  if (error || !teacher) return null;
+  if (inactive(teacher.status)) return { blocked: true, user: null, ref: String(teacher.id) };
+  return findAuthUserByUsersRow(admin, "teacher", "", String(teacher.id));
 }
 
 async function findAuthUserByRoleAndLoginFallback(admin: ReturnType<typeof createClient>, role: string, loginId: string) {
@@ -72,7 +71,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
     if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-
     const url = Deno.env.get("SUPABASE_URL") || "";
     const anon = Deno.env.get("SUPABASE_ANON_KEY") || "";
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -98,7 +96,6 @@ Deno.serve(async (req) => {
       }
       if (!student) return json({ error: "Invalid login ID or password." }, 401);
       if (inactive(student.status)) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
-
       const profile = await findAuthUserByUsersRow(admin, role, loginId, String(student.id));
       if (profile?.blocked) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
       if (profile?.user) {
@@ -107,13 +104,11 @@ Deno.serve(async (req) => {
       }
       if (!profile?.user) {
         const fallback = await findAuthUserByRoleAndLoginFallback(admin, role, loginId);
-        if (fallback) {
-          authId = fallback.id;
-          email = clean(fallback.email).toLowerCase() || email;
-        }
+        if (fallback) { authId = fallback.id; email = clean(fallback.email).toLowerCase() || email; }
       }
     } else {
-      const profile = await findAuthUserByUsersRow(admin, role, loginId);
+      let profile = await findAuthUserByUsersRow(admin, role, loginId);
+      if (!profile && role === "teacher") profile = await findTeacherAuthByTid(admin, loginId);
       if (profile?.blocked) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
 
       let authUser = profile?.user || null;
@@ -123,20 +118,11 @@ Deno.serve(async (req) => {
       } else {
         const fallback = await findAuthUserByRoleAndLoginFallback(admin, role, loginId);
         authUser = fallback;
-        if (authUser) {
-          authId = authUser.id;
-          email = clean(authUser.email).toLowerCase() || email;
-        }
+        if (authUser) { authId = authUser.id; email = clean(authUser.email).toLowerCase() || email; }
       }
 
       if (!authUser) {
-        const { data: appUser, error } = await admin
-          .from("users")
-          .select("auth_id,email,ref,phone,status,role")
-          .eq("role", role)
-          .eq("phone", loginId)
-          .limit(1)
-          .maybeSingle();
+        const { data: appUser, error } = await admin.from("users").select("auth_id,email,ref,phone,status,role").eq("role", role).eq("phone", loginId).limit(1).maybeSingle();
         if (!error && appUser) {
           if (inactive(appUser.status)) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
           authId = clean(appUser.auth_id);
@@ -149,27 +135,22 @@ Deno.serve(async (req) => {
           if (authUser) authId = authUser.id;
         }
       }
-
       if (!authUser) return json({ error: "Invalid login ID or password." }, 401);
       if (inactive(authUser.user_metadata?.status)) return json({ error: "This account is inactive. Please contact the institute administrator." }, 403);
       email = clean(authUser.email).toLowerCase() || email;
     }
 
     if (!email) return json({ error: "Your authentication account is not configured. Please contact the institute administrator." }, 401);
-
     const client = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
     const { data, error } = await client.auth.signInWithPassword({ email, password });
     if (error || !data.session || !data.user) {
       console.error("auth-login invalid credentials", { role, authId, error: error?.message });
       return json({ error: "Invalid login ID or password." }, 401);
     }
-
-    const appRole = data.user.app_metadata?.role;
-    if (appRole !== role) {
+    if (data.user.app_metadata?.role !== role) {
       await client.auth.signOut();
       return json({ error: "That account is registered under a different role." }, 403);
     }
-
     return json({ session: data.session, user: data.user }, 200);
   } catch (error) {
     console.error("auth-login:", error);
