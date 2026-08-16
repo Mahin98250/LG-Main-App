@@ -1,4 +1,4 @@
-const CACHE = "learners-guide-v10";
+const CACHE = "learners-guide-v11";
 const APP_SHELL = ["./", "./manifest.webmanifest", "./pwa-icon.svg"];
 const APP_SCOPE = self.registration?.scope || self.location.href;
 
