@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { getCurrentUser, signOut } from "@/lg/auth";
 import { AdminWithDrive } from "./AdminWithDrive";
 import AdminLogin from "./auth/AdminLogin";
@@ -7,6 +8,7 @@ type AdminUser = { id: string; name: string; phone: string; role: string; ref: s
 
 /** Single source of truth for the admin experience. */
 export default function AdminPortal() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<AdminUser | null>(null);
   const [checking, setChecking] = useState(true);
 
@@ -26,8 +28,18 @@ export default function AdminPortal() {
     return () => { mounted = false; };
   }, []);
 
-  const handleLogout = useCallback(async () => { await signOut(); setUser(null); }, []);
-  const handleForgotPassword = useCallback(() => { window.location.assign(`${window.location.origin}${import.meta.env.BASE_URL || "/"}reset-password`); }, []);
+  const handleLogout = useCallback(async () => {
+    try {
+      await signOut();
+    } finally {
+      setUser(null);
+      navigate({ to: "/", replace: true });
+    }
+  }, [navigate]);
+
+  const handleForgotPassword = useCallback(() => {
+    window.location.assign(`${window.location.origin}${import.meta.env.BASE_URL || "/"}reset-password`);
+  }, []);
 
   if (checking) return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Poppins, system-ui, sans-serif", color: "#0F1B3D" }}>Loading admin portal…</div>;
   if (!user) return <AdminLogin onAuthenticated={() => void refreshUser()} onForgotPassword={handleForgotPassword} />;
