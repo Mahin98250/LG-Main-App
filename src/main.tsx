@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { getRouter } from "./router";
 import InstallAppPrompt from "./InstallAppPrompt";
+import StartupMinimal from "./StartupMinimal";
 import DatabaseActivityOverlay, { emitDatabaseActivity } from "./DatabaseActivityOverlay";
 import MobileBackNavigation from "./MobileBackNavigation";
 import "./mobile.css";
@@ -60,6 +61,7 @@ window.addEventListener("click", (event) => {
 
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
+    <StartupMinimal />
     <RouterProvider router={router} />
     <InstallAppPrompt />
     <DatabaseActivityOverlay />
