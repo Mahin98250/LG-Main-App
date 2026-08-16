@@ -31,7 +31,7 @@ type View =
   | "homework"
   | "recovery";
 
-const Header = ({ title, onBack }: { title: string; onBack: () => void }) => (
+const Header = ({ title, onBack, onLogout }: { title: string; onBack: () => void; onLogout: () => void }) => (
   <div
     style={{
       padding: "12px 18px",
@@ -56,7 +56,22 @@ const Header = ({ title, onBack }: { title: string; onBack: () => void }) => (
     >
       ← Admin Dashboard
     </button>
-    <span style={{ color: "#fff", fontWeight: 800 }}>{title}</span>
+    <span style={{ color: "#fff", fontWeight: 800, flex: 1 }}>{title}</span>
+    <button
+      type="button"
+      onClick={onLogout}
+      style={{
+        border: "1px solid #ef444466",
+        borderRadius: 10,
+        padding: "9px 13px",
+        background: "#ef44441a",
+        color: "#fecaca",
+        fontWeight: 800,
+        cursor: "pointer",
+      }}
+    >
+      ↪ Logout
+    </button>
   </div>
 );
 
@@ -158,7 +173,7 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
   if (view === "dashboard") {
     return (
       <SafeSection title="Dashboard Analytics">
-        <AdminDashboardShell onNavigate={(next) => setView(next)} />
+        <AdminDashboardShell onNavigate={(next) => setView(next)} onLogout={onLogout} />
       </SafeSection>
     );
   }
@@ -174,7 +189,7 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
   if (view === "drive") {
     return (
       <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
-        <Header title="Study Materials · Drive" onBack={() => setView("dashboard")} />
+        <Header title="Study Materials · Drive" onBack={() => setView("dashboard")} onLogout={onLogout} />
         <SafeSection title="Study Materials">
           <MaterialsDrive />
         </SafeSection>
@@ -186,7 +201,7 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
     const label = view === "students" ? "Students" : "Teachers";
     return (
       <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
-        <Header title={`${label} · Production Management`} onBack={() => setView("dashboard")} />
+        <Header title={`${label} · Production Management`} onBack={() => setView("dashboard")} onLogout={onLogout} />
         <SafeSection title={label}>
           <AdminRecordsPage kind={view} />
         </SafeSection>
@@ -197,7 +212,7 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
   if (view === "batches") {
     return (
       <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
-        <Header title="Batches & Timetable" onBack={() => setView("dashboard")} />
+        <Header title="Batches & Timetable" onBack={() => setView("dashboard")} onLogout={onLogout} />
         <SafeSection title="Batches & Timetable">
           <BatchesTimetablePage />
         </SafeSection>
@@ -208,7 +223,7 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
   if (view === "announcements") {
     return (
       <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
-        <Header title="Announcements" onBack={() => setView("dashboard")} />
+        <Header title="Announcements" onBack={() => setView("dashboard")} onLogout={onLogout} />
         <SafeSection title="Announcements">
           <AnnouncementsPage />
         </SafeSection>
@@ -219,7 +234,7 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
   if (view === "homework") {
     return (
       <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
-        <Header title="Homework · Production Management" onBack={() => setView("dashboard")} />
+        <Header title="Homework · Production Management" onBack={() => setView("dashboard")} onLogout={onLogout} />
         <SafeSection title="Homework">
           <HomeworkPage />
         </SafeSection>
@@ -230,7 +245,7 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
   if (view === "recovery") {
     return (
       <div style={{ minHeight: "100vh", background: "#F0F4FF" }}>
-        <Header title="Password Recovery · Account Security" onBack={() => setView("dashboard")} />
+        <Header title="Password Recovery · Account Security" onBack={() => setView("dashboard")} onLogout={onLogout} />
         <SafeSection title="User Accounts">
           <RecoverySettingsPage />
         </SafeSection>
