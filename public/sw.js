@@ -1,5 +1,5 @@
-const CACHE = "learners-guide-v11";
-const APP_SHELL = ["./", "./manifest.webmanifest", "./pwa-icon.svg"];
+const CACHE = "learners-guide-v12";
+const APP_SHELL = ["./", "./manifest.webmanifest"];
 const APP_SCOPE = self.registration?.scope || self.location.href;
 
 function appUrl(value) {
@@ -30,11 +30,8 @@ self.addEventListener("push", (event) => {
     let payload = {};
     try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: event.data?.text?.() || "" }; }
     const title = payload.title || "Learner's Guide";
-    const icon = new URL("pwa-icon.svg", APP_SCOPE).href;
     const options = {
       body: payload.body || "You have a new notification.",
-      icon,
-      badge: icon,
       tag: payload.notificationId || `lg-${Date.now()}`,
       renotify: true,
       requireInteraction: false,
