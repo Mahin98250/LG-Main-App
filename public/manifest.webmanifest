@@ -5,6 +5,7 @@
   "start_url": "/LG-Main-App/",
   "scope": "/LG-Main-App/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#FFFFFF",
   "theme_color": "#FFFFFF",
