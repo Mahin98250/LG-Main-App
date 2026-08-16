@@ -40,9 +40,6 @@ const validateProfile = async (user, role) => {
   if (role === "admin") return { ok: true, error: null };
   if (!user.ref) return { ok: false, error: "Your account is not linked to an institute profile yet. Please contact the administrator." };
 
-  // Parents are linked to students through the authoritative parent_student_links
-  // table. Do not rely only on the legacy users.ref value: older parent accounts
-  // may contain a differently formatted/stale student reference.
   if (role === "parent") {
     const { data: links, error: linkError } = await supabase
       .from("parent_student_links")
@@ -77,18 +74,50 @@ const validateProfile = async (user, role) => {
   return { ok: true, error: null };
 };
 
-async function signInViaGateway(loginId, password, role) {
-  const { data, error } = await supabase.functions.invoke("auth-login", {
-    body: { loginId, password, role },
-  });
+async function readFunctionError(error, fallback = "Unable to sign in right now. Please try again.") {
+  // Supabase returns a FunctionsHttpError for any non-2xx response. In that
+  // case the useful JSON body is stored on error.context, not in `data`.
+  // Read it so users see the actual safe server message instead of the vague
+  // "Edge Function returned a non-2xx status code" message.
+  try {
+    const response = error?.context;
+    if (response && typeof response.clone === "function") {
+      const cloned = response.clone();
+      const body = await cloned.json();
+      if (typeof body?.error === "string" && body.error.trim()) return body.error.trim();
+      if (typeof body?.message === "string" && body.message.trim()) return body.message.trim();
+    }
+  } catch {
+    // Ignore parsing failures and use the safe fallback below.
+  }
+  return fallback;
+}
 
-  if (error || !data?.session?.access_token || !data?.session?.refresh_token) {
-    // Supabase FunctionsError can contain the useful server response in context,
-    // but never expose raw server internals to the user.
-    const serverMessage = typeof data?.error === "string" ? data.error : "";
+async function signInViaGateway(loginId, password, role) {
+  let data = null;
+  let error = null;
+
+  try {
+    const result = await supabase.functions.invoke("auth-login", {
+      body: { loginId, password, role },
+    });
+    data = result.data;
+    error = result.error;
+  } catch (invokeError) {
+    error = invokeError;
+  }
+
+  if (error) {
     return {
       user: null,
-      error: serverMessage || error?.message || "Invalid login ID or password.",
+      error: await readFunctionError(error, "Unable to sign in right now. Please try again."),
+    };
+  }
+
+  if (!data?.session?.access_token || !data?.session?.refresh_token || !data?.user) {
+    return {
+      user: null,
+      error: typeof data?.error === "string" ? data.error : "Invalid login ID or password.",
     };
   }
 
@@ -97,13 +126,9 @@ async function signInViaGateway(loginId, password, role) {
     refresh_token: data.session.refresh_token,
   };
 
-  // A previous role/session can be left in the browser's persistent storage.
-  // Clear only the local session before installing the freshly authenticated one.
   await supabase.auth.signOut({ scope: "local" }).catch(() => {});
   let { data: sessionData, error: sessionError } = await supabase.auth.setSession(session);
 
-  // Retry once after clearing local auth state. This handles stale/rotated refresh
-  // tokens without asking the user to manually clear browser storage.
   if (sessionError || !sessionData.user) {
     await supabase.auth.signOut({ scope: "local" }).catch(() => {});
     const retry = await supabase.auth.setSession(session);
@@ -118,7 +143,6 @@ async function signInViaGateway(loginId, password, role) {
 }
 
 async function signInAdminDirectly(loginId, password) {
-  // Admin login does not depend on the auth-login Edge Function.
   const email = authEmail(loginId, "admin");
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data?.user) return { user: null, error: error?.message || "Invalid admin login ID or password." };
