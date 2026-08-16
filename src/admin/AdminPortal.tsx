@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { getCurrentUser, signOut } from "@/lg/auth";
 import { AdminWithDrive } from "./AdminWithDrive";
 import AdminLogin from "./auth/AdminLogin";
@@ -8,7 +7,6 @@ type AdminUser = { id: string; name: string; phone: string; role: string; ref: s
 
 /** Single source of truth for the admin experience. */
 export default function AdminPortal() {
-  const navigate = useNavigate();
   const [user, setUser] = useState<AdminUser | null>(null);
   const [checking, setChecking] = useState(true);
 
@@ -33,9 +31,12 @@ export default function AdminPortal() {
       await signOut();
     } finally {
       setUser(null);
-      navigate({ to: "/", replace: true });
+      // GitHub Pages hosts this app under /LG-Main-App/, so never navigate to
+      // the domain root (https://mahin98250.github.io/). Use the Vite base URL.
+      const base = import.meta.env.BASE_URL || "/";
+      window.location.replace(new URL(base, window.location.origin).href);
     }
-  }, [navigate]);
+  }, []);
 
   const handleForgotPassword = useCallback(() => {
     window.location.assign(`${window.location.origin}${import.meta.env.BASE_URL || "/"}reset-password`);
