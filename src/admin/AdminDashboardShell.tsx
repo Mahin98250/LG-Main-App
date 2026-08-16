@@ -23,7 +23,7 @@ const NAV: Array<[View, string, string]> = [
   ["recovery", "🔐", "User Accounts"],
 ];
 
-export function AdminDashboardShell({ onNavigate }: { onNavigate: (view: View) => void }) {
+export function AdminDashboardShell({ onNavigate, onLogout }: { onNavigate: (view: View) => void; onLogout: () => void }) {
   return (
     <div style={{ minHeight: "100vh", background: "#F0F4FF", color: "#0F1B3D", fontFamily: "Poppins,system-ui,sans-serif", display: "flex" }}>
       <aside style={{ width: 252, minHeight: "100vh", background: "#0F1B3D", color: "#fff", padding: "22px 14px", position: "sticky", top: 0, alignSelf: "flex-start" }}>
@@ -39,6 +39,9 @@ export function AdminDashboardShell({ onNavigate }: { onNavigate: (view: View) =
             </button>
           ))}
         </nav>
+        <button type="button" onClick={onLogout} style={{ width: "100%", marginTop: 18, border: "1px solid #ef444466", background: "#ef44441a", color: "#fecaca", padding: "12px 13px", borderRadius: 12, textAlign: "left", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontWeight: 800 }}>
+          <span style={{ width: 22, textAlign: "center" }}>↪</span><span>Logout</span>
+        </button>
       </aside>
       <main style={{ flex: 1, minWidth: 0 }}>
         <AdminDashboardAnalytics onBack={() => onNavigate("dashboard")} />
