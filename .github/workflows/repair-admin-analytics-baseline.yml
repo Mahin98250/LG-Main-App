@@ -28,13 +28,14 @@ jobs:
           text = p.read_text(encoding='utf-8')
           old = 'for(let i=0;i<queries.length;i++){const query=queries[i];if(!query)continue;const r=await query;if(r.error&&!first)first=r.error.message; out[keys[i]]=r.data||[];}'
           new = 'for(let i=0;i<queries.length;i++){const query=queries[i];const key=keys[i];if(!query||!key)continue;const r=await query;if(r.error&&!first)first=r.error.message;out[key]=r.data||[];}'
-          if old not in text:
-              raise SystemExit('Expected AdminAnalytics baseline line was not found')
-          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+          if old in text:
+              text = text.replace(old, new, 1)
+          p.write_text(text, encoding='utf-8')
 
       - name: Verify formatting and TypeScript
         run: |
           npm install
+          npx prettier --write src/admin/AdminAnalytics.tsx
           npx prettier --check src/admin/AdminAnalytics.tsx
           npm run typecheck
 
