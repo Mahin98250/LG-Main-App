@@ -8,11 +8,24 @@ type Role = "student" | "parent" | "teacher";
 const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 const card: React.CSSProperties = { background: "#fff", border: `1px solid ${C.border}`, borderRadius: 18, boxShadow: "0 4px 20px rgba(15,27,61,.07)" };
 
+async function getFunctionErrorMessage(error: any) {
+  if (error?.context && typeof error.context.json === "function") {
+    try {
+      const body = await error.context.json();
+      if (body?.error) return String(body.error);
+      if (body?.message) return String(body.message);
+    } catch {
+      // The response body may already have been consumed or may not be JSON.
+    }
+  }
+  return error?.message || "Authentication service failed.";
+}
+
 async function saveRecoveryEmail(row: Row, email: string) {
   const role = String(row.role) as Role;
   const body = { action: "update", role, loginId: String(row.phone || ""), name: String(row.name || "User"), ref: String(row.ref || ""), authId: String(row.auth_id || ""), recoveryEmail: email.trim().toLowerCase() };
   const { data, error } = await supabase.functions.invoke("admin-provision-user", { body });
-  if (error) throw new Error(error.message || "Authentication service failed.");
+  if (error) throw new Error(await getFunctionErrorMessage(error));
   if (data?.error) throw new Error(String(data.error));
   if (!data?.authId) throw new Error("Authentication account was not updated.");
   return data as { authId: string; email?: string };
