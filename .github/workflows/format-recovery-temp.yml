@@ -3,7 +3,7 @@ name: Format recovery page (temporary)
 on:
   push:
     branches:
-      - fix/recovery-formatting
+      - main
 
 permissions:
   contents: write
