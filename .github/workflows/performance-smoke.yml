@@ -11,6 +11,8 @@ on:
         description: 'Requests per user (1-20)'
         required: true
         default: '3'
+  push:
+    branches: [perf/load-test-production]
 
 permissions:
   contents: read
@@ -19,6 +21,10 @@ jobs:
   performance:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        users: [50, 100, 250]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -31,7 +37,7 @@ jobs:
       - name: Run bounded production smoke test
         env:
           TARGET_URL: https://mahin98250.github.io/LG-Main-App/
-          USERS: ${{ inputs.users }}
-          REQUESTS_PER_USER: ${{ inputs.requests_per_user }}
+          USERS: ${{ github.event_name == 'workflow_dispatch' && inputs.users || matrix.users }}
+          REQUESTS_PER_USER: ${{ github.event_name == 'workflow_dispatch' && inputs.requests_per_user || 3 }}
           TIMEOUT_MS: 15000
         run: node scripts/performance-smoke.mjs
