@@ -17,16 +17,24 @@ const authEmail = (role: string, id: string, recoveryEmail = "") => {
   return `${({ teacher: "t", student: "s", parent: "p", admin: "u" } as Record<string, string>)[role] || "u"}.${normalize(id)}@learnersguide.in`;
 };
 
+async function listAllUsers(a: ReturnType<typeof createClient>) {
+  const users: any[] = [];
+  for (let page = 1; page <= 100; page += 1) {
+    const { data, error } = await a.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw error;
+    users.push(...data.users);
+    if (data.users.length < 1000) break;
+  }
+  return users;
+}
 async function findUser(a: ReturnType<typeof createClient>, email: string) {
-  const { data, error } = await a.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (error) throw error;
-  return data.users.find((u) => (u.email || "").toLowerCase() === email.toLowerCase()) || null;
+  const users = await listAllUsers(a);
+  return users.find((u) => (u.email || "").toLowerCase() === email.toLowerCase()) || null;
 }
 async function findUserByRefRole(a: ReturnType<typeof createClient>, ref: string | null, role: string) {
   if (!ref) return null;
-  const { data, error } = await a.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (error) throw error;
-  return data.users.find((u) => u.app_metadata?.role === role && String(u.app_metadata?.ref || "") === String(ref)) || null;
+  const users = await listAllUsers(a);
+  return users.find((u) => u.app_metadata?.role === role && String(u.app_metadata?.ref || "") === String(ref)) || null;
 }
 async function getUser(a: ReturnType<typeof createClient>, id: string | null) {
   if (!id) return null;
@@ -39,8 +47,21 @@ async function getUser(a: ReturnType<typeof createClient>, id: string | null) {
 }
 async function syncParentLink(admin: ReturnType<typeof createClient>, parentAuthId: string, studentId: string | null) {
   if (!studentId) return;
-  const { error } = await admin.from("parent_student_links").upsert({ parent_auth_id: parentAuthId, student_id: studentId, status: "active" }, { onConflict: "parent_auth_id,student_id" });
+  const { data: existing, error: readError } = await admin.from("parent_student_links").select("parent_auth_id").eq("parent_auth_id", parentAuthId).eq("student_id", studentId).maybeSingle();
+  if (readError) throw new Error(`Unable to verify parent link: ${readError.message}`);
+  if (existing) {
+    const { error } = await admin.from("parent_student_links").update({ status: "active" }).eq("parent_auth_id", parentAuthId).eq("student_id", studentId);
+    if (error) throw new Error(`Unable to activate parent link: ${error.message}`);
+    return;
+  }
+  const { error } = await admin.from("parent_student_links").insert({ parent_auth_id: parentAuthId, student_id: studentId, status: "active" });
   if (error) throw new Error(`Unable to link parent to student: ${error.message}`);
+}
+async function ensureEmailAvailable(admin: ReturnType<typeof createClient>, email: string, currentAuthId: string | null) {
+  if (!isEmail(email)) return null;
+  const existing = await findUser(admin, email);
+  if (existing && existing.id !== currentAuthId) return existing;
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -118,6 +139,10 @@ Deno.serve(async (req) => {
     }
     const existingRole = user.app_metadata?.role;
     if (existingRole && existingRole !== role) return json({ error: "The authentication account belongs to a different role." }, 409);
+    if (isEmail(recoveryEmail)) {
+      const conflict = await ensureEmailAvailable(admin, recoveryEmail, user.id);
+      if (conflict) return json({ error: "That email address is already assigned to another account. Please use a different email address." }, 409);
+    }
     const patch: Record<string, unknown> = { user_metadata: { ...(user.user_metadata || {}), name, phone: loginId }, app_metadata: { ...(user.app_metadata || {}), role, ref } };
     if (password) patch.password = password;
     if (isEmail(recoveryEmail)) { patch.email = recoveryEmail; patch.email_confirm = true; }
