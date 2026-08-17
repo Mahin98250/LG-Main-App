@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { clearCache } from "@/lg/data";
 import { getCurrentUser, signOut } from "@/lg/auth";
+import { supabase } from "@/lg/supabase";
 import { AdminWithDrive } from "./AdminWithDrive";
 import AdminLogin from "./auth/AdminLogin";
 
@@ -29,17 +31,22 @@ export default function AdminPortal() {
   const handleLogout = useCallback(async () => {
     try {
       await signOut();
+    } catch (error) {
+      console.warn("Remote admin logout failed; clearing local session:", error);
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
     } finally {
       setUser(null);
-      // GitHub Pages hosts this app under /LG-Main-App/, so never navigate to
-      // the domain root (https://mahin98250.github.io/). Use the Vite base URL.
+      clearCache();
       const base = import.meta.env.BASE_URL || "/";
-      window.location.replace(new URL(base, window.location.origin).href);
+      const homeUrl = new URL(base.endsWith("/") ? base : `${base}/`, window.location.origin).href;
+      window.location.replace(homeUrl);
     }
   }, []);
 
   const handleForgotPassword = useCallback(() => {
-    window.location.assign(`${window.location.origin}${import.meta.env.BASE_URL || "/"}reset-password`);
+    const base = import.meta.env.BASE_URL || "/";
+    const root = `${window.location.origin}${base.endsWith("/") ? base : `${base}/`}`;
+    window.location.assign(new URL("reset-password", root).href);
   }, []);
 
   if (checking) return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Poppins, system-ui, sans-serif", color: "#0F1B3D" }}>Loading admin portal…</div>;
