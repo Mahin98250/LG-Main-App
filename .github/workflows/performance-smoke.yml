@@ -1,0 +1,37 @@
+name: Production Performance Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        description: 'Concurrent users (1-1000)'
+        required: true
+        default: '50'
+      requests_per_user:
+        description: 'Requests per user (1-20)'
+        required: true
+        default: '3'
+
+permissions:
+  contents: read
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Run bounded production smoke test
+        env:
+          TARGET_URL: https://mahin98250.github.io/LG-Main-App/
+          USERS: ${{ inputs.users }}
+          REQUESTS_PER_USER: ${{ inputs.requests_per_user }}
+          TIMEOUT_MS: 15000
+        run: node scripts/performance-smoke.mjs
