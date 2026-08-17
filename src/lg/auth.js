@@ -8,12 +8,12 @@ import { supabase } from "@/lg/supabase";
  */
 const ACCOUNT_DOMAIN = "learnersguide.in";
 const PREFIX = { teacher: "t", student: "s", parent: "p" };
-const ADMIN_EMAIL = "admin@school.com";
 
 export const normalizeId = (loginId) => String(loginId || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 export const authEmail = (loginId, role) => {
-  if (String(loginId || "").includes("@")) return String(loginId).trim().toLowerCase();
-  if (role === "admin") return ADMIN_EMAIL;
+  const clean = String(loginId || "").trim().toLowerCase();
+  if (clean.includes("@")) return clean;
+  if (role === "admin") return clean;
   return `${PREFIX[role] || "u"}.${normalizeId(loginId)}@${ACCOUNT_DOMAIN}`;
 };
 
@@ -75,10 +75,6 @@ const validateProfile = async (user, role) => {
 };
 
 async function readFunctionError(error, fallback = "Unable to sign in right now. Please try again.") {
-  // Supabase returns a FunctionsHttpError for any non-2xx response. In that
-  // case the useful JSON body is stored on error.context, not in `data`.
-  // Read it so users see the actual safe server message instead of the vague
-  // "Edge Function returned a non-2xx status code" message.
   try {
     const response = error?.context;
     if (response && typeof response.clone === "function") {
@@ -88,7 +84,7 @@ async function readFunctionError(error, fallback = "Unable to sign in right now.
       if (typeof body?.message === "string" && body.message.trim()) return body.message.trim();
     }
   } catch {
-    // Ignore parsing failures and use the safe fallback below.
+    // Use the safe fallback when a function response cannot be parsed.
   }
   return fallback;
 }
@@ -96,54 +92,34 @@ async function readFunctionError(error, fallback = "Unable to sign in right now.
 async function signInViaGateway(loginId, password, role) {
   let data = null;
   let error = null;
-
   try {
-    const result = await supabase.functions.invoke("auth-login", {
-      body: { loginId, password, role },
-    });
+    const result = await supabase.functions.invoke("auth-login", { body: { loginId, password, role } });
     data = result.data;
     error = result.error;
   } catch (invokeError) {
     error = invokeError;
   }
-
-  if (error) {
-    return {
-      user: null,
-      error: await readFunctionError(error, "Unable to sign in right now. Please try again."),
-    };
-  }
-
+  if (error) return { user: null, error: await readFunctionError(error, "Unable to sign in right now. Please try again.") };
   if (!data?.session?.access_token || !data?.session?.refresh_token || !data?.user) {
-    return {
-      user: null,
-      error: typeof data?.error === "string" ? data.error : "Invalid login ID or password.",
-    };
+    return { user: null, error: typeof data?.error === "string" ? data.error : "Invalid login ID or password." };
   }
 
-  const session = {
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-  };
-
+  const session = { access_token: data.session.access_token, refresh_token: data.session.refresh_token };
   await supabase.auth.signOut({ scope: "local" }).catch(() => {});
   let { data: sessionData, error: sessionError } = await supabase.auth.setSession(session);
-
   if (sessionError || !sessionData.user) {
     await supabase.auth.signOut({ scope: "local" }).catch(() => {});
     const retry = await supabase.auth.setSession(session);
     sessionData = retry.data;
     sessionError = retry.error;
   }
-
-  if (sessionError || !sessionData.user) {
-    return { user: null, error: "Unable to establish a secure session. Please try again." };
-  }
+  if (sessionError || !sessionData.user) return { user: null, error: "Unable to establish a secure session. Please try again." };
   return { user: sessionData.user, error: null };
 }
 
 async function signInAdminDirectly(loginId, password) {
   const email = authEmail(loginId, "admin");
+  if (!email.includes("@")) return { user: null, error: "Administrator login requires the administrator email address." };
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data?.user) return { user: null, error: error?.message || "Invalid admin login ID or password." };
   return { user: data.user, error: null };
@@ -156,9 +132,7 @@ export async function signIn(loginId, password, role) {
 
   let authResult;
   try {
-    authResult = role === "admin"
-      ? await signInAdminDirectly(cleanLogin, password)
-      : await signInViaGateway(cleanLogin, password, role);
+    authResult = role === "admin" ? await signInAdminDirectly(cleanLogin, password) : await signInViaGateway(cleanLogin, password, role);
   } catch {
     authResult = { user: null, error: "Unable to sign in right now. Please try again." };
   }
