@@ -8,6 +8,7 @@ import AnnouncementsPage from "@/admin/AnnouncementsPage";
 import RecoverySettingsPage from "@/admin/RecoverySettingsPage";
 import HomeworkPage from "@/admin/HomeworkPage";
 import TestManagementPage from "@/admin/tests/TestManagementPage";
+import FeesManagementPage from "@/admin/FeesManagementPage";
 import { AdminErrorBoundary } from "@/admin/AdminErrorBoundary";
 import { AdminDashboardShell } from "@/admin/AdminDashboardShell";
 import { AdminProfilePage } from "@/admin/AdminProfilePage";
@@ -27,7 +28,8 @@ type View =
   | "teacherAssignments"
   | "announcements"
   | "homework"
-  | "recovery";
+  | "recovery"
+  | "fees";
 
 const Header = ({ title, onBack, onLogout }: { title: string; onBack: () => void; onLogout: () => void }) => (
   <div style={{ padding: "12px 18px", background: "#0F1B3D", display: "flex", alignItems: "center", gap: 12 }}>
@@ -78,76 +80,47 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
       if (!button) return;
       const text = (button.textContent || "").trim();
       if (text.includes("Student Results") || text.includes("Tests & Results")) {
-        event.preventDefault();
-        event.stopPropagation();
-        setView("tests");
-        return;
+        event.preventDefault(); event.stopPropagation(); setView("tests"); return;
       }
       if (text.includes("Teacher Assignments")) {
-        event.preventDefault();
-        event.stopPropagation();
-        setView("teacherAssignments");
-        return;
+        event.preventDefault(); event.stopPropagation(); setView("teacherAssignments"); return;
       }
       if (text === "🏠 Dashboard" || text === "Dashboard") {
-        event.preventDefault();
-        event.stopPropagation();
-        setView("dashboard");
-        return;
+        event.preventDefault(); event.stopPropagation(); setView("dashboard"); return;
       }
       if (text.includes("Search Profiles")) {
-        event.preventDefault();
-        event.stopPropagation();
-        setView("profiles");
-        return;
+        event.preventDefault(); event.stopPropagation(); setView("profiles"); return;
       }
       if (text.includes("Study Materials")) {
-        event.preventDefault();
-        event.stopPropagation();
-        setView("drive");
-        return;
+        event.preventDefault(); event.stopPropagation(); setView("drive"); return;
       }
       if (text === "🎓 Students" || text === "Students") {
-        event.preventDefault();
-        event.stopPropagation();
-        setView("students");
-        return;
+        event.preventDefault(); event.stopPropagation(); setView("students"); return;
       }
       if (text === "👨‍🏫 Teachers" || text === "Teachers") {
-        event.preventDefault();
-        event.stopPropagation();
-        setView("teachers");
-        return;
+        event.preventDefault(); event.stopPropagation(); setView("teachers"); return;
       }
       if (text.includes("Batches & Timetable")) {
-        event.preventDefault();
-        event.stopPropagation();
-        setView("batches");
-        return;
+        event.preventDefault(); event.stopPropagation(); setView("batches"); return;
       }
       if (text.includes("Announcements")) {
-        event.preventDefault();
-        event.stopPropagation();
-        setView("announcements");
-        return;
+        event.preventDefault(); event.stopPropagation(); setView("announcements"); return;
       }
       if (text.includes("Homework")) {
-        event.preventDefault();
-        event.stopPropagation();
-        setView("homework");
-        return;
+        event.preventDefault(); event.stopPropagation(); setView("homework"); return;
+      }
+      if (text.includes("Fees")) {
+        event.preventDefault(); event.stopPropagation(); setView("fees"); return;
       }
       if (text.includes("User Accounts")) {
-        event.preventDefault();
-        event.stopPropagation();
-        setView("recovery");
+        event.preventDefault(); event.stopPropagation(); setView("recovery");
       }
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
   }, [view]);
 
-  if (view === "dashboard") return <SafeSection title="Dashboard Analytics"><AdminDashboardShell onNavigate={(next) => setView(next)} onLogout={onLogout} /></SafeSection>;
+  if (view === "dashboard") return <SafeSection title="Dashboard Analytics"><AdminDashboardShell onNavigate={(next) => setView(next as View)} onLogout={onLogout} /></SafeSection>;
   if (view === "profiles") return <SafeSection title="User Profiles"><AdminProfilePage onBack={() => setView("dashboard")} /></SafeSection>;
   if (view === "drive") return <div style={scrollPage}><Header title="Study Materials · Drive" onBack={() => setView("dashboard")} onLogout={onLogout}/><SafeSection title="Study Materials"><MaterialsDrive/></SafeSection></div>;
   if (view === "students" || view === "teachers") {
@@ -159,6 +132,7 @@ export function AdminWithDrive({ user, onLogout }: { user: AdminUser; onLogout: 
   if (view === "tests") return <div style={scrollPage}><Header title="Tests & Results" onBack={() => setView("dashboard")} onLogout={onLogout}/><SafeSection title="Tests & Results"><TestManagementPage/></SafeSection></div>;
   if (view === "announcements") return <div style={scrollPage}><Header title="Announcements" onBack={() => setView("dashboard")} onLogout={onLogout}/><SafeSection title="Announcements"><AnnouncementsPage/></SafeSection></div>;
   if (view === "homework") return <div style={scrollPage}><Header title="Homework · Production Management" onBack={() => setView("dashboard")} onLogout={onLogout}/><SafeSection title="Homework"><HomeworkPage/></SafeSection></div>;
+  if (view === "fees") return <div style={scrollPage}><Header title="Fees · Production Management" onBack={() => setView("dashboard")} onLogout={onLogout}/><SafeSection title="Fees"><FeesManagementPage/></SafeSection></div>;
   if (view === "recovery") return <div style={scrollPage}><Header title="Password Recovery · Account Security" onBack={() => setView("dashboard")} onLogout={onLogout}/><SafeSection title="User Accounts"><RecoverySettingsPage/></SafeSection></div>;
   return <ReferenceAdminPanel user={user} onLogout={onLogout}/>;
 }
