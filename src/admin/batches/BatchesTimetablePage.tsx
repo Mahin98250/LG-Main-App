@@ -9,10 +9,26 @@ const CLASSES = ["9", "10", "11", "12"];
 const SECTIONS = ["A", "B", "C", "D"];
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const SUBJECTS: Record<string, string[]> = {
-  "9": ["Science", "English", "Maths", "Social Studies"],
-  "10": ["Science", "English", "Maths", "Social Studies"],
-  "11": ["Accountancy", "Business Studies", "Economics", "Applied Mathematics", "Informatics Practices", "Entrepreneurship", "Physical Education"],
-  "12": ["Accountancy", "Business Studies", "Economics", "Applied Mathematics", "Informatics Practices", "Entrepreneurship", "Physical Education"],
+  "9": ["English", "Science", "Maths", "Social Studies"],
+  "10": ["English", "Science", "Maths", "Social Studies"],
+  "11": [
+    "Accountancy",
+    "Business Studies",
+    "Economics",
+    "Applied Mathematics",
+    "Informatics Practices",
+    "Entrepreneurship",
+    "Physical Education",
+  ],
+  "12": [
+    "Accountancy",
+    "Business Studies",
+    "Economics",
+    "Applied Mathematics",
+    "Informatics Practices",
+    "Entrepreneurship",
+    "Physical Education",
+  ],
 };
 
 const css = `
@@ -20,7 +36,8 @@ const css = `
 .card{background:#fff;border:1px solid ${C.border};border-radius:18px;box-shadow:0 4px 20px rgba(15,27,61,.07)}
 .btn{border:0;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer}
 .field{display:block}.field span{display:block;font-size:12px;font-weight:750;color:${C.sub};margin-bottom:6px}.field input,.field select,.field textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid ${C.border};border-radius:10px;background:#F8FAFF}.field textarea{min-height:80px}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.days{display:flex;gap:8px;flex-wrap:wrap}.days label{border:1px solid ${C.border};border-radius:10px;padding:8px 10px;font-size:12px;cursor:pointer}.table{width:100%;border-collapse:collapse}.table th{background:#F8FAFF;color:${C.sub};padding:12px;text-align:left;font-size:12px}.table td{padding:12px;border-top:1px solid ${C.border};font-size:13px}.modal{position:fixed;inset:0;background:rgba(15,27,61,.58);z-index:100;display:grid;place-items:center;padding:16px}.modalbox{width:min(900px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:20px;padding:24px}@media(max-width:700px){.bt{padding:16px}.grid{grid-template-columns:1fr}}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.days{display:flex;gap:8px;flex-wrap:wrap}.days label,.subjects label{border:1px solid ${C.border};border-radius:10px;padding:8px 10px;font-size:12px;cursor:pointer}.subjects{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.subjects label.selected,.days label.selected{background:#EEF2FF;border-color:${C.accent}}
+.table{width:100%;border-collapse:collapse}.table th{background:#F8FAFF;color:${C.sub};padding:12px;text-align:left;font-size:12px}.table td{padding:12px;border-top:1px solid ${C.border};font-size:13px}.modal{position:fixed;inset:0;background:rgba(15,27,61,.58);z-index:100;display:grid;place-items:center;padding:16px}.modalbox{width:min(900px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:20px;padding:24px}@media(max-width:700px){.bt{padding:16px}.grid,.subjects{grid-template-columns:1fr}}
 `;
 
 function Button({ children, onClick, outline = false, color = C.accent, disabled = false }: { children: React.ReactNode; onClick?: () => void; outline?: boolean; color?: string; disabled?: boolean }) {
@@ -34,6 +51,8 @@ function Field({ label, value, onChange, options, type = "text", placeholder = "
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return <div className="modal" onClick={onClose}><div className="modalbox" onClick={e => e.stopPropagation()}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><h2 style={{ margin: 0 }}>{title}</h2><button type="button" onClick={onClose} style={{ border: 0, background: "#F1F5F9", borderRadius: 9, padding: 8, cursor: "pointer" }}>✕</button></div>{children}</div></div>;
 }
+
+const emptySchedule = { batchId: "", teacherId: "", subjects: [] as string[], days: [] as string[], start: "17:00", end: "18:00", room: "" };
 
 export default function BatchesTimetablePage() {
   const [tab, setTab] = useState<"batches" | "timetable">("batches");
@@ -55,7 +74,7 @@ export default function BatchesTimetablePage() {
   const [query, setQuery] = useState("");
   const [batchForm, setBatchForm] = useState({ name: "", cls: "", sec: "", capacity: "", status: "active", description: "" });
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
-  const [scheduleForm, setScheduleForm] = useState({ batchId: "", teacherId: "", subject: "", days: [] as string[], start: "17:00", end: "18:00", room: "" });
+  const [scheduleForm, setScheduleForm] = useState(emptySchedule);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -71,9 +90,10 @@ export default function BatchesTimetablePage() {
   const filteredBatches = useMemo(() => { const q = query.trim().toLowerCase(); return q ? batches.filter(b => `${b.name} ${b.cls} ${b.sec}`.toLowerCase().includes(q)) : batches; }, [batches, query]);
   const batchOptions: Option[] = batches.filter(b => String(b.status ?? "active") === "active").map(b => ({ v: String(b.id), l: `${b.name} — Class ${b.cls}` }));
   const teacherOptions: Option[] = teachers.filter(t => String(t.status ?? "active") === "active").map(t => ({ v: String(t.id), l: String(t.name ?? t.teacherid ?? t.id) }));
+  const selectedBatch = batches.find(b => String(b.id) === String(scheduleForm.batchId));
+  const subjectsForBatch = SUBJECTS[String(selectedBatch?.cls ?? "")] ?? [];
   const batchName = (id: any) => batches.find(b => String(b.id) === String(id))?.name ?? "Unknown batch";
   const teacherName = (id: any) => teachers.find(t => String(t.id) === String(id))?.name ?? teachers.find(t => String(t.id) === String(id))?.teacherid ?? "Unknown teacher";
-  const subjectsForBatch = SUBJECTS[String(batches.find(b => String(b.id) === String(scheduleForm.batchId))?.cls ?? "")] ?? [];
 
   const openBatch = (b?: Row) => {
     setEditingBatch(b ?? null);
@@ -94,10 +114,7 @@ export default function BatchesTimetablePage() {
     finally { setSaving(false); }
   };
 
-  const openStudents = (b: Row) => {
-    setStudentModal(b); setError("");
-    setSelectedStudents(activeMemberships.filter(m => String(m.batch_id) === String(b.id)).map(m => String(m.student_id)));
-  };
+  const openStudents = (b: Row) => { setStudentModal(b); setError(""); setSelectedStudents(activeMemberships.filter(m => String(m.batch_id) === String(b.id)).map(m => String(m.student_id))); };
 
   const saveStudents = async () => {
     if (!studentModal) return;
@@ -130,18 +147,23 @@ export default function BatchesTimetablePage() {
   };
 
   const saveSchedule = async () => {
-    if (!scheduleForm.batchId || !scheduleForm.teacherId || !scheduleForm.subject || !scheduleForm.days.length || !scheduleForm.start || !scheduleForm.end) { setError("Select batch, teacher, subject, at least one day, start time and end time."); return; }
+    const subjects = [...new Set(scheduleForm.subjects)];
+    if (!scheduleForm.batchId || !scheduleForm.teacherId || !subjects.length || !scheduleForm.days.length || !scheduleForm.start || !scheduleForm.end) {
+      setError("Select batch, teacher, at least one subject, at least one day, start time and end time."); return;
+    }
     if (scheduleForm.end <= scheduleForm.start) { setError("End time must be after start time."); return; }
     setSaving(true); setError("");
     try {
-      for (const day of scheduleForm.days) {
-        const dayNo = DAYS.indexOf(day) + 1;
-        const id = `tt-${Date.now()}-${dayNo}-${Math.random().toString(36).slice(2, 7)}`;
-        const { error: e } = await supabase.from("timetable_entries").insert({ id, batch_id: scheduleForm.batchId, teacher_id: scheduleForm.teacherId, subject_name: scheduleForm.subject, day_of_week: dayNo, start_time: scheduleForm.start, end_time: scheduleForm.end, room_id: scheduleForm.room || null, status: "active" });
-        if (e) throw e;
+      for (const subject of subjects) {
+        for (const day of scheduleForm.days) {
+          const dayNo = DAYS.indexOf(day) + 1;
+          const id = `tt-${Date.now()}-${dayNo}-${Math.random().toString(36).slice(2, 8)}`;
+          const { error: e } = await supabase.from("timetable_entries").insert({ id, batch_id: scheduleForm.batchId, teacher_id: scheduleForm.teacherId, subject_name: subject, day_of_week: dayNo, start_time: scheduleForm.start, end_time: scheduleForm.end, room_id: scheduleForm.room || null, status: "active" });
+          if (e) throw e;
+        }
       }
-      setScheduleModal(false); await load(); setSuccess("Timetable schedule added successfully.");
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to save timetable. The teacher may already have an overlapping class."); }
+      setScheduleModal(false); setScheduleForm(emptySchedule); await load(); setSuccess(`${subjects.length} subject${subjects.length === 1 ? "" : "s"} assigned successfully.`);
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to save timetable. Check the teacher's existing timetable for overlapping classes."); }
     finally { setSaving(false); }
   };
 
@@ -154,21 +176,27 @@ export default function BatchesTimetablePage() {
   };
 
   return <><style>{css}</style><div className="bt">
-    {error && <div className="card" style={{ padding: 12, marginBottom: 14, color: C.red, background: "#FFF7F7" }}>⚠️ {error}</div>}
-    {success && <div className="card" style={{ padding: 12, marginBottom: 14, color: "#15803D", background: "#F0FDF4" }}>✅ {success}</div>}
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 18 }}><div><h1 style={{ margin: 0, fontSize: 24 }}>Batches & Timetable</h1><p style={{ margin: "5px 0 0", color: C.sub, fontSize: 13 }}>Batches contain students. Timetable assigns teachers, subjects, days and times.</p></div><Button onClick={load} outline>↻ Refresh</Button></div>
+    {error && <div className="card" style={{ padding: 12, marginBottom: 14, color: C.red }}>⚠️ {error}</div>}
+    {success && <div className="card" style={{ padding: 12, marginBottom: 14, color: "#15803D" }}>✅ {success}</div>}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 18 }}><div><h1 style={{ margin: 0, fontSize: 24 }}>Batches & Timetable</h1><p style={{ margin: "5px 0 0", color: C.sub, fontSize: 13 }}>Assign teachers to batches with one or multiple subjects.</p></div><Button onClick={load} outline>↻ Refresh</Button></div>
     <div className="card" style={{ display: "flex", gap: 6, padding: 7, marginBottom: 18 }}><button type="button" className="btn" onClick={() => setTab("batches")} style={{ background: tab === "batches" ? C.accent : "transparent", color: tab === "batches" ? "#fff" : C.sub }}>👥 Batches</button><button type="button" className="btn" onClick={() => setTab("timetable")} style={{ background: tab === "timetable" ? C.accent : "transparent", color: tab === "timetable" ? "#fff" : C.sub }}>🗓️ Timetable</button></div>
     {loading ? <div className="card" style={{ padding: 45, textAlign: "center", color: C.sub }}>Loading…</div> : tab === "batches" ? <>
       <div className="card" style={{ padding: 14, marginBottom: 16, display: "flex", gap: 10 }}><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search batch name, class or section…" style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 13px" }} /><Button onClick={() => openBatch()}>+ Create Batch</Button></div>
       {filteredBatches.length === 0 ? <div className="card" style={{ padding: 50, textAlign: "center" }}><div style={{ fontSize: 40 }}>👥</div><h3>No batches yet</h3><p style={{ color: C.sub }}>Create your first batch, then add students.</p><Button onClick={() => openBatch()}>+ Create Batch</Button></div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(310px,1fr))", gap: 16 }}>{filteredBatches.map(b => { const count = activeMemberships.filter(m => String(m.batch_id) === String(b.id)).length; return <div key={String(b.id)} className="card" style={{ padding: 20 }}><h3 style={{ margin: 0 }}>{b.name}</h3><div style={{ color: C.sub, fontSize: 12, marginTop: 5 }}>Class {b.cls}{b.sec && b.sec !== "All" ? ` · Section ${b.sec}` : ""}</div><div style={{ margin: "18px 0", padding: 14, background: "#F8FAFF", borderRadius: 12 }}><div style={{ fontSize: 26, fontWeight: 900, color: C.accent }}>{count}{b.capacity != null && <span style={{ fontSize: 14, color: C.sub }}> / {b.capacity}</span>}</div><div style={{ fontSize: 11, color: C.sub }}>students in this batch</div></div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button onClick={() => openStudents(b)}>👥 Students</Button><Button outline onClick={() => openBatch(b)}>Edit</Button><Button outline color={C.red} onClick={() => setDeleteBatch(b)}>Delete</Button></div></div>; })}</div>}
     </> : <>
-      <div className="card" style={{ padding: 14, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}><div><b>Weekly timetable</b><div style={{ color: C.sub, fontSize: 12 }}>Only overlapping schedules for the same teacher are rejected.</div></div><Button onClick={() => { setError(""); setScheduleForm({ batchId: "", teacherId: "", subject: "", days: [], start: "17:00", end: "18:00", room: "" }); setScheduleModal(true); }}>+ Add Schedule</Button></div>
+      <div className="card" style={{ padding: 14, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}><div><b>Weekly timetable</b><div style={{ color: C.sub, fontSize: 12 }}>Select one or multiple subjects when assigning a teacher to a batch.</div></div><Button onClick={() => { setError(""); setScheduleForm(emptySchedule); setScheduleModal(true); }}>+ Add Schedule</Button></div>
       <div className="card" style={{ overflow: "auto" }}><table className="table"><thead><tr><th>Batch</th><th>Subject</th><th>Teacher</th><th>Day</th><th>Time</th><th>Room</th><th></th></tr></thead><tbody>{timetable.length === 0 ? <tr><td colSpan={7} style={{ textAlign: "center", padding: 45, color: C.sub }}>No timetable entries yet. Click <b>+ Add Schedule</b>.</td></tr> : timetable.map(x => <tr key={String(x.id)}><td>{batchName(x.batch_id)}</td><td>{x.subject_name}</td><td>{teacherName(x.teacher_id)}</td><td>{DAYS[(Number(x.day_of_week) || 1) - 1] ?? "—"}</td><td>{String(x.start_time).slice(0, 5)}–{String(x.end_time).slice(0, 5)}</td><td>{x.room_id ?? "—"}</td><td><Button outline color={C.red} onClick={() => setDeleteSchedule(x)}>Delete</Button></td></tr>)}</tbody></table></div>
     </>}
 
     {batchModal && <Modal title={editingBatch ? "Edit Batch" : "Create Batch"} onClose={() => !saving && setBatchModal(false)}><div className="grid"><Field label="Batch Name" value={batchForm.name} onChange={v => setBatchForm(f => ({ ...f, name: v }))} placeholder="10 Morning"/><Field label="Class" value={batchForm.cls} onChange={v => setBatchForm(f => ({ ...f, cls: v }))} options={CLASSES.map(v => ({ v, l: v }))}/><Field label="Section (optional)" value={batchForm.sec} onChange={v => setBatchForm(f => ({ ...f, sec: v }))} options={SECTIONS.map(v => ({ v, l: v }))}/><Field label="Capacity (optional)" value={batchForm.capacity} onChange={v => setBatchForm(f => ({ ...f, capacity: v }))} type="number" placeholder="30"/><Field label="Status" value={batchForm.status} onChange={v => setBatchForm(f => ({ ...f, status: v }))} options={["active", "inactive"].map(v => ({ v, l: v }))}/><label className="field" style={{ gridColumn: "1/-1" }}><span>Description</span><textarea value={batchForm.description} onChange={e => setBatchForm(f => ({ ...f, description: e.target.value }))}/></label></div><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}><Button outline onClick={() => setBatchModal(false)}>Cancel</Button><Button disabled={saving} onClick={() => void saveBatch()}>{saving ? "Saving…" : editingBatch ? "Save Changes" : "Create Batch"}</Button></div></Modal>}
+
     {studentModal && <Modal title={`Students — ${studentModal.name}`} onClose={() => !saving && setStudentModal(null)}><p style={{ color: C.sub, fontSize: 13 }}>Select the active students in this batch. A student can have only one active batch.</p><div style={{ maxHeight: 430, overflow: "auto", border: `1px solid ${C.border}`, borderRadius: 12 }}>{students.filter(s => String(s.status ?? "active") === "active").map(s => { const checked = selectedStudents.includes(String(s.id)); const other = activeMemberships.find(m => String(m.student_id) === String(s.id) && String(m.batch_id) !== String(studentModal.id)); return <label key={String(s.id)} style={{ display: "flex", gap: 10, alignItems: "center", padding: 11, borderBottom: `1px solid ${C.border}`, opacity: other ? .5 : 1 }}><input type="checkbox" checked={checked} disabled={!!other} onChange={() => setSelectedStudents(x => checked ? x.filter(id => id !== String(s.id)) : [...x, String(s.id)])}/><span><b>{s.name}</b><small style={{ display: "block", color: C.sub }}>{s.sid ?? s.id} · Class {s.cls}-{s.sec}{other ? " · Already in another batch" : ""}</small></span></label>; })}</div><div style={{ marginTop: 12, color: C.sub, fontSize: 12 }}>{selectedStudents.length} selected</div><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}><Button outline onClick={() => setStudentModal(null)}>Cancel</Button><Button disabled={saving} onClick={() => void saveStudents()}>{saving ? "Saving…" : "Save Students"}</Button></div></Modal>}
-    {scheduleModal && <Modal title="Add Timetable Schedule" onClose={() => !saving && setScheduleModal(false)}><div className="grid"><Field label="Batch" value={scheduleForm.batchId} onChange={v => setScheduleForm(f => ({ ...f, batchId: v, subject: "" }))} options={batchOptions}/><Field label="Teacher" value={scheduleForm.teacherId} onChange={v => setScheduleForm(f => ({ ...f, teacherId: v }))} options={teacherOptions}/><Field label="Subject" value={scheduleForm.subject} onChange={v => setScheduleForm(f => ({ ...f, subject: v }))} options={subjectsForBatch.map(v => ({ v, l: v }))}/><Field label="Room (optional)" value={scheduleForm.room} onChange={v => setScheduleForm(f => ({ ...f, room: v }))} options={["Room 1", "Room 2", "Cabin"].map(v => ({ v, l: v }))}/><Field label="Start Time" value={scheduleForm.start} onChange={v => setScheduleForm(f => ({ ...f, start: v }))} type="time"/><Field label="End Time" value={scheduleForm.end} onChange={v => setScheduleForm(f => ({ ...f, end: v }))} type="time"/></div><div style={{ marginTop: 14 }}><div style={{ fontSize: 12, fontWeight: 750, color: C.sub, marginBottom: 7 }}>Days</div><div className="days">{DAYS.map(day => <label key={day}><input type="checkbox" checked={scheduleForm.days.includes(day)} onChange={e => setScheduleForm(f => ({ ...f, days: e.target.checked ? [...f.days, day] : f.days.filter(d => d !== day) }))}/>{day}</label>)}</div></div><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}><Button outline onClick={() => setScheduleModal(false)}>Cancel</Button><Button disabled={saving} onClick={() => void saveSchedule()}>{saving ? "Saving…" : "Save Schedule"}</Button></div></Modal>}
+
+    {scheduleModal && <Modal title="Add Timetable Schedule" onClose={() => !saving && setScheduleModal(false)}><div className="grid"><Field label="Batch" value={scheduleForm.batchId} onChange={v => setScheduleForm(f => ({ ...f, batchId: v, subjects: [] }))} options={batchOptions}/><Field label="Teacher" value={scheduleForm.teacherId} onChange={v => setScheduleForm(f => ({ ...f, teacherId: v }))} options={teacherOptions}/><Field label="Room (optional)" value={scheduleForm.room} onChange={v => setScheduleForm(f => ({ ...f, room: v }))} options={["Room 1", "Room 2", "Cabin"].map(v => ({ v, l: v }))}/><Field label="Start Time" value={scheduleForm.start} onChange={v => setScheduleForm(f => ({ ...f, start: v }))} type="time"/><Field label="End Time" value={scheduleForm.end} onChange={v => setScheduleForm(f => ({ ...f, end: v }))} type="time"/></div>
+      <div style={{ marginTop: 14 }}><div style={{ fontSize: 12, fontWeight: 750, color: C.sub, marginBottom: 7 }}>Subjects — select one or more</div>{!scheduleForm.batchId ? <div style={{ color: C.sub, fontSize: 12 }}>Select a batch first.</div> : <div className="subjects">{subjectsForBatch.map(subject => { const checked = scheduleForm.subjects.includes(subject); return <label key={subject} className={checked ? "selected" : ""}><input type="checkbox" checked={checked} onChange={e => setScheduleForm(f => ({ ...f, subjects: e.target.checked ? [...f.subjects, subject] : f.subjects.filter(s => s !== subject) }))}/> {subject}</label>; })}</div>}{scheduleForm.subjects.length > 0 && <div style={{ marginTop: 8, color: C.sub, fontSize: 12 }}>{scheduleForm.subjects.length} subject{scheduleForm.subjects.length === 1 ? "" : "s"} selected</div>}</div>
+      <div style={{ marginTop: 14 }}><div style={{ fontSize: 12, fontWeight: 750, color: C.sub, marginBottom: 7 }}>Days</div><div className="days">{DAYS.map(day => { const checked = scheduleForm.days.includes(day); return <label key={day} className={checked ? "selected" : ""}><input type="checkbox" checked={checked} onChange={e => setScheduleForm(f => ({ ...f, days: e.target.checked ? [...f.days, day] : f.days.filter(d => d !== day) }))}/> {day}</label>; })}</div></div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}><Button outline onClick={() => setScheduleModal(false)}>Cancel</Button><Button disabled={saving} onClick={() => void saveSchedule()}>{saving ? "Saving…" : "Save Schedule"}</Button></div></Modal>}
+
     {deleteBatch && <Modal title="Delete Batch" onClose={() => !saving && setDeleteBatch(null)}><p style={{ color: C.sub }}>Delete <b>{deleteBatch.name}</b>? Students will not be deleted.</p><div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button outline onClick={() => setDeleteBatch(null)}>Cancel</Button><Button color={C.red} disabled={saving} onClick={() => void removeBatch()}>Delete Batch</Button></div></Modal>}
     {deleteSchedule && <Modal title="Delete Schedule" onClose={() => !saving && setDeleteSchedule(null)}><p style={{ color: C.sub }}>Delete this timetable entry?</p><div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button outline onClick={() => setDeleteSchedule(null)}>Cancel</Button><Button color={C.red} disabled={saving} onClick={() => void removeSchedule()}>Delete</Button></div></Modal>}
   </div></>;
