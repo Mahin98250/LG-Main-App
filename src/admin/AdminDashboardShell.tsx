@@ -7,6 +7,7 @@ type View =
   | "teachers"
   | "batches"
   | "tests"
+  | "teacherAssignments"
   | "announcements"
   | "homework"
   | "drive"
@@ -17,6 +18,7 @@ const NAV: Array<[View, string, string]> = [
   ["students", "🎓", "Students"],
   ["teachers", "👨‍🏫", "Teachers"],
   ["batches", "👥", "Batches & Timetable"],
+  ["teacherAssignments", "👨‍🏫", "Teacher Assignments"],
   ["tests", "🧪", "Tests & Results"],
   ["profiles", "🔎", "Search Profiles"],
   ["homework", "📝", "Homework"],
