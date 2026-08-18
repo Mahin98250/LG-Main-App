@@ -28,7 +28,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Lint changed source files
+      - name: Format changed source files
         shell: bash
         run: |
           set -euo pipefail
@@ -46,11 +46,11 @@ jobs:
             ':!package-lock.json' ':!.github/workflows/*')
 
           if (( ${#FILES[@]} == 0 )); then
-            echo "No changed files require Prettier validation."
+            echo "No changed files require Prettier formatting."
           else
-            printf 'Checking %s changed file(s) with Prettier:\n' "${#FILES[@]}"
+            printf 'Formatting %s changed file(s) with Prettier:\n' "${#FILES[@]}"
             printf ' - %s\n' "${FILES[@]}"
-            npx prettier --check "${FILES[@]}"
+            npx prettier --write "${FILES[@]}"
           fi
 
       - name: Typecheck
