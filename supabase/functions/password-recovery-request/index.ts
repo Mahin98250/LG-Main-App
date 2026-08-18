@@ -26,9 +26,19 @@ Deno.serve(async (req) => {
     let email = "";
     if (role === "student") {
       const sid = normalizeId(identifier);
-      const { data: students, error } = await admin.from("students").select("id,sid,status").limit(20);
-      if (error) throw error;
-      const student = (students || []).find((row) => normalizeId(row.sid) === sid || normalizeId(row.id) === sid);
+      const { data: studentBySid, error: sidError } = await admin.from("students").select("id,sid,status").eq("sid", identifier).maybeSingle();
+      if (sidError) throw sidError;
+      let student = studentBySid;
+      if (!student) {
+        const { data: studentById, error: idError } = await admin.from("students").select("id,sid,status").eq("id", identifier).maybeSingle();
+        if (idError) throw idError;
+        student = studentById;
+      }
+      if (!student && sid !== identifier) {
+        const { data: students, error } = await admin.from("students").select("id,sid,status").limit(20);
+        if (error) throw error;
+        student = (students || []).find((row) => normalizeId(row.sid) === sid || normalizeId(row.id) === sid);
+      }
       if (student && normalize(student.status) === "active") {
         const { data: users, error: userError } = await admin.from("users").select("email,auth_id,role,ref,status").eq("role", "student").eq("ref", String(student.id)).limit(5);
         if (userError) throw userError;
