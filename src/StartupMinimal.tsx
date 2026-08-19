@@ -1,23 +1,24 @@
 import { useEffect, useState } from "react";
+import { LOGO_IMG_SRC } from "@/lg/ui";
 
-/** Quiet, logo-free launch transition. It never blocks the application workflow. */
+/** Short launch transition using the real Learner's Guide logo. */
 export default function StartupMinimal() {
   const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setExiting(true), 220);
+    const timer = window.setTimeout(() => setExiting(true), 420);
     return () => window.clearTimeout(timer);
   }, []);
 
   return (
     <div className={`lg-minimal-launch${exiting ? " lg-minimal-launch--exit" : ""}`} aria-hidden="true">
-      <div className="lg-minimal-launch__light" />
+      <img className="lg-minimal-launch__logo" src={LOGO_IMG_SRC} alt="Learner's Guide" />
       <style>{`
-        .lg-minimal-launch{position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:#fff;opacity:1;overflow:hidden;transition:opacity 420ms cubic-bezier(.22,1,.36,1)}
+        .lg-minimal-launch{position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:#fff;display:flex;align-items:center;justify-content:center;opacity:1;overflow:hidden;transition:opacity 360ms cubic-bezier(.22,1,.36,1)}
         .lg-minimal-launch--exit{opacity:0}
-        .lg-minimal-launch__light{position:absolute;width:52vmin;height:52vmin;left:50%;top:46%;border-radius:50%;transform:translate(-50%,-50%) scale(.72);background:radial-gradient(circle,rgba(255,255,255,.98) 0%,rgba(247,249,255,.72) 34%,rgba(255,255,255,0) 72%);filter:blur(18px);animation:lg-minimal-breathe 700ms cubic-bezier(.22,1,.36,1) both}
-        @keyframes lg-minimal-breathe{0%{opacity:0;transform:translate(-50%,-50%) scale(.72)}55%{opacity:1}100%{opacity:.72;transform:translate(-50%,-50%) scale(1)}}
-        @media(prefers-reduced-motion:reduce){.lg-minimal-launch{transition:none}.lg-minimal-launch__light{animation:none}}
+        .lg-minimal-launch__logo{width:min(190px,42vw);height:min(190px,42vw);object-fit:contain;display:block;animation:lg-minimal-logo-in 420ms cubic-bezier(.22,1,.36,1) both}
+        @keyframes lg-minimal-logo-in{0%{opacity:0;transform:scale(.9)}100%{opacity:1;transform:scale(1)}}
+        @media(prefers-reduced-motion:reduce){.lg-minimal-launch{transition:none}.lg-minimal-launch__logo{animation:none}}
       `}</style>
     </div>
   );
