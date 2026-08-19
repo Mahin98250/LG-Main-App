@@ -6,6 +6,7 @@ import InstallAppPrompt from "./InstallAppPrompt";
 import StartupMinimal from "./StartupMinimal";
 import DatabaseActivityOverlay, { emitDatabaseActivity } from "./DatabaseActivityOverlay";
 import MobileBackNavigation from "./MobileBackNavigation";
+import { LOGO_IMG_SRC } from "@/lg/ui";
 import "./mobile.css";
 
 const originalFetch = window.fetch.bind(window);
@@ -28,6 +29,15 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     emitDatabaseActivity(false, label, kind);
   }
 };
+
+const installOriginalLogo = () => {
+  const links = document.querySelectorAll<HTMLLinkElement>('link[rel="icon"],link[rel="apple-touch-icon"]');
+  links.forEach(link => {
+    link.href = LOGO_IMG_SRC;
+  });
+};
+
+installOriginalLogo();
 
 const router = getRouter();
 
