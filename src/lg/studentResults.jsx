@@ -5,6 +5,18 @@ import { Card, Sec } from "@/lg/ui";
 
 const text = (v) => (v == null ? "" : String(v));
 
+async function loadStudentBatchIds(student) {
+  const ids = new Set();
+  const direct = student?.batchId || student?.batch_id;
+  if (direct) ids.add(String(direct));
+  if (student?.id) {
+    const { data, error } = await supabase.from("batch_students").select("batch_id").eq("student_id", String(student.id)).eq("status", "active");
+    if (error) throw error;
+    (data || []).forEach((r) => r.batch_id && ids.add(String(r.batch_id)));
+  }
+  return [...ids];
+}
+
 export function STExams({ student }) {
   const [schedule, setSchedule] = useState([]);
   const [tests, setTests] = useState([]);
@@ -16,22 +28,23 @@ export function STExams({ student }) {
     (async () => {
       setLoading(true); setError("");
       try {
-        const cls = text(student?.cls), sec = text(student?.sec), batch = text(student?.batchId || student?.batch_id);
-        const [scheduleResult, testResult] = await Promise.all([
+        const cls = text(student?.cls), sec = text(student?.sec);
+        const batchIds = await loadStudentBatchIds(student);
+        const [scheduleResult, testsResult] = await Promise.all([
           supabase.from("examschedule").select("id,title,subject,cls,sec,date,starttime,endtime,venue,syllabus,totalmarks,createdby,startTime,endTime,totalMarks").eq("cls", cls).order("date", { ascending: true }),
-          batch
-            ? supabase.from("tests").select("id,title,description,batch_id,subject,test_date,total_marks,status,created_at").eq("batch_id", batch).order("test_date", { ascending: true })
-            : supabase.from("tests").select("id,title,description,batch_id,subject,test_date,total_marks,status,created_at").eq("id", "__none__"),
+          batchIds.length
+            ? supabase.from("tests").select("id,title,description,batch_id,subject,test_date,total_marks,status,created_at").in("batch_id", batchIds).order("test_date", { ascending: true })
+            : Promise.resolve({ data: [], error: null }),
         ]);
         if (scheduleResult.error) throw scheduleResult.error;
-        if (testResult.error) throw testResult.error;
+        if (testsResult.error) throw testsResult.error;
         const filteredSchedule = (scheduleResult.data || []).filter((r) => !r.sec || String(r.sec) === sec || String(r.sec) === "All");
-        if (live) { setSchedule(filteredSchedule); setTests(testResult.data || []); }
-      } catch (e) { if (live) setError(e instanceof Error ? e.message : "Unable to load exams."); }
+        if (live) { setSchedule(filteredSchedule); setTests(testsResult.data || []); }
+      } catch (e) { if (live) setError(e instanceof Error ? e.message : "Unable to load exams and tests."); }
       finally { if (live) setLoading(false); }
     })();
     return () => { live = false; };
-  }, [student]);
+  }, [student?.id, student?.sid, student?.batchId, student?.batch_id, student?.cls, student?.sec]);
 
   const rows = [
     ...schedule.map((e) => ({ kind: "schedule", id: `schedule-${e.id}`, title: e.title || "Exam", subject: e.subject, date: e.date, total: e.totalMarks ?? e.totalmarks, time: `${e.startTime || e.starttime || "—"}${(e.endTime || e.endtime) ? ` – ${e.endTime || e.endtime}` : ""}`, venue: e.venue, syllabus: e.syllabus })),
@@ -64,10 +77,13 @@ export function STResults({ student }) {
     (async () => {
       setLoading(true); setError("");
       try {
-        if (!student?.id) { setRows([]); return; }
-        const { data: results, error: resultError } = await supabase.from("test_results").select("id,test_id,student_id,marks,remarks,created_at,updated_at").eq("student_id", String(student.id)).order("created_at", { ascending: false });
-        if (resultError) throw resultError;
-        const testIds = [...new Set((results || []).map((r) => String(r.test_id)).filter(Boolean))];
+        if (!student?.id && !student?.sid) { setRows([]); return; }
+        const identifiers = [...new Set([student?.id, student?.sid].filter(Boolean).map(String))];
+        const queries = await Promise.all(identifiers.map((id) => supabase.from("test_results").select("id,test_id,student_id,marks,remarks,created_at,updated_at").eq("student_id", id).order("created_at", { ascending: false })));
+        const queryError = queries.find((q) => q.error)?.error;
+        if (queryError) throw queryError;
+        const results = [...new Map(queries.flatMap((q) => q.data || []).map((r) => [String(r.id), r])).values()];
+        const testIds = [...new Set(results.map((r) => String(r.test_id)).filter(Boolean))];
         let tests = [];
         if (testIds.length) {
           const { data, error: testError } = await supabase.from("tests").select("id,title,subject,test_date,total_marks,status").in("id", testIds);
@@ -75,18 +91,18 @@ export function STResults({ student }) {
           tests = data || [];
         }
         const byTest = new Map(tests.map((t) => [String(t.id), t]));
-        const mapped = (results || []).map((r) => {
+        const mapped = results.map((r) => {
           const test = byTest.get(String(r.test_id));
           const marks = Number(r.marks), total = Number(test?.total_marks);
           const percentage = Number.isFinite(marks) && Number.isFinite(total) && total > 0 ? (marks / total) * 100 : null;
           return { ...r, test, percentage };
-        });
+        }).filter((r) => r.test);
         if (live) setRows(mapped);
       } catch (e) { if (live) { setError(e instanceof Error ? e.message : "Unable to load results."); setRows([]); } }
       finally { if (live) setLoading(false); }
     })();
     return () => { live = false; };
-  }, [student?.id]);
+  }, [student?.id, student?.sid]);
 
   const valid = rows.filter((r) => r.percentage != null);
   const average = valid.length ? valid.reduce((sum, r) => sum + Number(r.percentage), 0) / valid.length : null;
