@@ -6,6 +6,11 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const DEFAULT_PASSWORDS: Record<string, string> = {
+  student: "Student@1234",
+  parent: "Parent@1234",
+  teacher: "Teacher@1234",
+};
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const normalize = (value: string) => String(value || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 const normalizeEmail = (value: string) => String(value || "").trim().toLowerCase();
@@ -87,7 +92,7 @@ Deno.serve(async (req) => {
     const action = String(body.action || "").trim().toLowerCase();
     const role = String(body.role || "").trim().toLowerCase();
     const loginId = String(body.loginId || "").trim();
-    const password = String(body.password || "");
+    const suppliedPassword = String(body.password || "");
     const name = String(body.name || "User").trim() || "User";
     const ref = body.ref ? String(body.ref) : null;
     const authId = body.authId ? String(body.authId) : null;
@@ -97,6 +102,7 @@ Deno.serve(async (req) => {
     if (recoveryEmail && !isEmail(recoveryEmail)) return json({ error: "Enter a valid recovery email address." }, 400);
     const email = authEmail(role, loginId, recoveryEmail);
     const existingByEmail = email ? await findUser(admin, email) : null;
+    const password = action === "create" ? (DEFAULT_PASSWORDS[role] || suppliedPassword) : suppliedPassword;
 
     if (action === "delete") {
       let user = await getUser(admin, authId);
