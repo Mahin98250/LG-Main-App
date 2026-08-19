@@ -11,10 +11,16 @@
   "theme_color": "#FFFFFF",
   "icons": [
     {
-      "src": "/LG-Main-App/favicon.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "src": "/LG-Main-App/learner-guide-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/LG-Main-App/learner-guide-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }
