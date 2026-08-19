@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Learner's Guide</title>
+  <desc id="desc">Learner's Guide symbol of a person reading with a growing tree</desc>
+  <rect width="512" height="512" rx="96" fill="#FFFFFF"/>
+  <path d="M105 345c38-12 78-18 121-18 31 0 53 6 80 18 27-12 49-18 80-18 43 0 83 6 121 18" fill="none" stroke="#17324D" stroke-width="18" stroke-linecap="round"/>
+  <path d="M256 327V171" fill="none" stroke="#17324D" stroke-width="18" stroke-linecap="round"/>
+  <path d="M256 180c-31-48-70-59-105-43 8 40 37 65 77 67" fill="#2E8B57"/>
+  <path d="M256 180c31-48 70-59 105-43-8 40-37 65-77 67" fill="#3FAE63"/>
+  <circle cx="256" cy="125" r="28" fill="#F4B942"/>
+  <path d="M132 344c28-28 61-43 96-43 15 0 29 3 42 9v39c-23-10-47-15-73-15-22 0-44 3-65 10Z" fill="#E8F0F7" stroke="#17324D" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M380 344c-28-28-61-43-96-43-15 0-29 3-42 9v39c23-10 47-15 73-15 22 0 44 3 65 10Z" fill="#E8F0F7" stroke="#17324D" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M151 373h210" stroke="#17324D" stroke-width="14" stroke-linecap="round"/>
+</svg>
