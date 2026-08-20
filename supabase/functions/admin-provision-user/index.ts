@@ -5,12 +5,6 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-const DEFAULT_PASSWORDS: Record<string, string> = {
-  student: "Student@1234",
-  parent: "Parent@1234",
-  teacher: "Teacher@1234",
-};
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const normalize = (value: string) => String(value || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 const normalizeEmail = (value: string) => String(value || "").trim().toLowerCase();
@@ -102,7 +96,6 @@ Deno.serve(async (req) => {
     if (recoveryEmail && !isEmail(recoveryEmail)) return json({ error: "Enter a valid recovery email address." }, 400);
     const email = authEmail(role, loginId, recoveryEmail);
     const existingByEmail = email ? await findUser(admin, email) : null;
-    const password = action === "create" ? (DEFAULT_PASSWORDS[role] || suppliedPassword) : suppliedPassword;
 
     if (action === "delete") {
       let user = await getUser(admin, authId);
@@ -116,18 +109,18 @@ Deno.serve(async (req) => {
 
     if (!loginId) return json({ error: "Login ID is required" }, 400);
     if (action === "create") {
-      if (!password) return json({ error: "Password is required" }, 400);
+      if (!suppliedPassword) return json({ error: "A unique password is required when creating an account." }, 400);
       if (existingByEmail) {
         const existingRole = existingByEmail.app_metadata?.role;
         const existingRef = existingByEmail.app_metadata?.ref;
         if (existingRole && existingRole !== role) return json({ error: "This login ID is already used by another account type." }, 409);
         if (existingRef && ref && String(existingRef) !== String(ref)) return json({ error: "This login ID is already linked to another institute profile." }, 409);
-        const { data, error } = await admin.auth.admin.updateUserById(existingByEmail.id, { email: isEmail(recoveryEmail) ? recoveryEmail : existingByEmail.email, email_confirm: true, password, user_metadata: { ...(existingByEmail.user_metadata || {}), name, phone: loginId }, app_metadata: { ...(existingByEmail.app_metadata || {}), role, ref } });
+        const { data, error } = await admin.auth.admin.updateUserById(existingByEmail.id, { email: isEmail(recoveryEmail) ? recoveryEmail : existingByEmail.email, email_confirm: true, password: suppliedPassword, user_metadata: { ...(existingByEmail.user_metadata || {}), name, phone: loginId }, app_metadata: { ...(existingByEmail.app_metadata || {}), role, ref } });
         if (error) return json({ error: `Unable to repair authentication account: ${error.message}` }, 502);
         if (role === "parent") await syncParentLink(admin, data.user.id, ref);
         return json({ authId: data.user.id, email: data.user.email, updated: true, repaired: true });
       }
-      const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name, phone: loginId }, app_metadata: { role, ref } });
+      const { data, error } = await admin.auth.admin.createUser({ email, password: suppliedPassword, email_confirm: true, user_metadata: { name, phone: loginId }, app_metadata: { role, ref } });
       if (error) return json({ error: `Unable to create authentication account: ${error.message}` }, 502);
       if (role === "parent") await syncParentLink(admin, data.user.id, ref);
       return json({ authId: data.user.id, email: data.user.email, created: true });
@@ -137,8 +130,8 @@ Deno.serve(async (req) => {
     if (!user) user = await findUserByRefRole(admin, ref, role);
     if (!user) user = existingByEmail;
     if (!user) {
-      if (!password) return json({ error: "Authentication account not found. A password is required to recreate it.", code: "AUTH_ACCOUNT_MISSING" }, 404);
-      const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name, phone: loginId }, app_metadata: { role, ref } });
+      if (!suppliedPassword) return json({ error: "Authentication account not found. A password is required to recreate it.", code: "AUTH_ACCOUNT_MISSING" }, 404);
+      const { data, error } = await admin.auth.admin.createUser({ email, password: suppliedPassword, email_confirm: true, user_metadata: { name, phone: loginId }, app_metadata: { role, ref } });
       if (error) return json({ error: `Unable to repair authentication account: ${error.message}` }, 502);
       if (role === "parent") await syncParentLink(admin, data.user.id, ref);
       return json({ authId: data.user.id, email: data.user.email, created: true, repaired: true });
@@ -150,7 +143,7 @@ Deno.serve(async (req) => {
       if (conflict) return json({ error: "That email address is already assigned to another account. Please use a different email address." }, 409);
     }
     const patch: Record<string, unknown> = { user_metadata: { ...(user.user_metadata || {}), name, phone: loginId }, app_metadata: { ...(user.app_metadata || {}), role, ref } };
-    if (password) patch.password = password;
+    if (suppliedPassword) patch.password = suppliedPassword;
     if (isEmail(recoveryEmail)) { patch.email = recoveryEmail; patch.email_confirm = true; }
     const { data, error } = await admin.auth.admin.updateUserById(user.id, patch);
     if (error) return json({ error: `Unable to update authentication account: ${error.message}` }, 502);
